@@ -15,8 +15,8 @@ export function renderPagination({ pagination, path, search, extension, sort }) 
         'div',
         {},
         total_items === 0
-          ? 'Tidak ada objek untuk ditampilkan.'
-          : `Menampilkan ${start} - ${end} dari ${total_items} objek.`
+          ? 'No objects to display.'
+          : `Showing ${start} - ${end} of ${total_items} objects.`
       ),
       el('div', { class: 'pagination-buttons' }, [
         el('button', { class: 'pagination-btn', disabled: true }, 'Previous'),
@@ -48,13 +48,13 @@ export function renderPagination({ pagination, path, search, extension, sort }) 
   );
 
   return el('div', { class: 'pagination' }, [
-    el('div', {}, [
-      'Menampilkan ',
+    el('div', null, [
+      'Showing ',
       el('strong', {}, `${start} - ${end}`),
-      ' dari ',
+      ' of ',
       el('strong', {}, String(total_items)),
-      ' objek (',
-      el('strong', {}, `Halaman ${current_page}/${total_pages}`),
+      ' objects (page ',
+      el('strong', {}, `${current_page}/${total_pages}`),
       ')'
     ]),
     el('div', { class: 'pagination-buttons' }, [prev, next])

@@ -5,6 +5,10 @@ const ICONS = {
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>'
 };
 
+function navigateToPath(target) {
+  navigate({ path: target, search: '', extension: '', sort: '', page: 1 });
+}
+
 export function renderBreadcrumb(path) {
   const parts = (path || '').split('/').filter(Boolean);
 
@@ -16,7 +20,7 @@ export function renderBreadcrumb(path) {
         class: 'breadcrumb-item',
         onClick: (e) => {
           e.preventDefault();
-          navigate({ path: '', search: '', extension: '', sort: '', page: 1 });
+          navigateToPath('');
         }
       },
       [icon(ICONS.home, 14), el('span', {}, 'root')]
@@ -34,7 +38,7 @@ export function renderBreadcrumb(path) {
                 href: `#/${subPath}`,
                 onClick: (e) => {
                   e.preventDefault();
-                  navigate({ path: subPath, search: '', extension: '', sort: '', page: 1 });
+                  navigateToPath(subPath);
                 }
               }, part)
             ]

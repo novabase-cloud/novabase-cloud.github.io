@@ -18,7 +18,7 @@ function buildScreen() {
     type: 'password',
     class: 'login-input',
     id: 'login-password',
-    placeholder: 'Masukkan access key',
+    placeholder: 'Enter access key',
     autocomplete: 'current-password',
     spellcheck: 'false',
     'aria-label': 'Access key'
@@ -37,7 +37,7 @@ function buildScreen() {
       class: 'login-submit'
     },
     [
-      el('span', { class: 'login-submit-label' }, 'Akses Dashboard'),
+      el('span', { class: 'login-submit-label' }, 'Open Dashboard'),
       el('span', { class: 'login-submit-spinner', style: { display: 'none' } }, [
         el('span', { class: 'spinner' })
       ])
@@ -78,7 +78,7 @@ function buildScreen() {
       el('div', { class: 'login-options' }, [
         el('label', { class: 'login-remember' }, [
           rememberInput,
-          el('span', {}, 'Ingat saya di perangkat ini')
+          el('span', {}, 'Remember me on this device')
         ])
       ]),
       submitBtn
@@ -90,11 +90,11 @@ function buildScreen() {
       el('div', { class: 'login-brand-icon' }, [icon(ICONS.lock, 20)]),
       el('div', { class: 'login-brand-text' }, [
         el('h1', {}, 'Novabase Hub'),
-        el('p', {}, 'Tiktok Storage Gateway')
+        el('p', {}, 'Storage Gateway')
       ])
     ]),
-    el('h2', { class: 'login-title' }, 'Akses API Storage'),
-    el('p', { class: 'login-subtitle' }, 'Masukkan access key untuk membuka gerbang Workers API.'),
+    el('h2', { class: 'login-title' }, 'Sign in to Storage API'),
+    el('p', { class: 'login-subtitle' }, 'Enter your access key to open the Cloudflare Workers API gateway.'),
     form,
     el('div', { class: 'login-footer' }, 'Powered by Cloudflare Workers · v1.0.0')
   ]);

@@ -1,7 +1,8 @@
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
+  const safeAttrs = attrs || {};
 
-  for (const [key, value] of Object.entries(attrs)) {
+  for (const [key, value] of Object.entries(safeAttrs)) {
     if (value == null || value === false) continue;
 
     if (key === 'class' || key === 'className') {

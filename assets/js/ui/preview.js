@@ -8,7 +8,7 @@ import { showToast } from './toast.js';
 const ICONS = {
   close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
-  wrap: '<path d="M3 6h18"></path><path d="M3 12h15a3 3 0 1 1 0 6h-4"></path><polyline points="9 16 12 19 9 22"></polyline><path d="M3 18h6"></path>',
+  wrap: '<path d="M3 6h18"></path><path d="M3 12h15a3 3 0 1 1 0 6h-4"></path><polyline points="9 16 12 19 9 22"></path><path d="M3 18h6"></path>',
   file: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline>'
 };
 
@@ -35,8 +35,8 @@ function buildLoading() {
 function buildUnsupported(extension) {
   return el('div', { class: 'empty-state' }, [
     el('div', { class: 'empty-state-icon' }, [icon(ICONS.file, 32)]),
-    el('p', {}, `Preview tidak tersedia untuk tipe file "${extension || 'tanpa ekstensi'}".`),
-    el('p', { style: { marginTop: '8px', fontSize: '12px' } }, 'Gunakan tombol Download untuk mengunduh berkas.')
+    el('p', {}, `Preview is not available for file type "${extension || 'no extension'}".`),
+    el('p', { style: { marginTop: '8px', fontSize: '12px' } }, 'Use the Download button to fetch the file.')
   ]);
 }
 
@@ -59,7 +59,7 @@ function buildJsonView(text) {
 function buildCsvView(text) {
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (lines.length === 0) {
-    return el('div', { class: 'empty-state' }, 'File kosong.');
+    return el('div', { class: 'empty-state' }, 'File is empty.');
   }
   const headers = lines[0].split(',').map((h) => h.trim());
   const rows = lines.slice(1).map((row) => row.split(',').map((c) => c.trim()));
@@ -109,7 +109,7 @@ function buildCsvView(text) {
 function buildCodeView(text, ext) {
   const view = el('pre', { class: 'code-view', 'data-lang': ext || 'text' });
   if (!text) {
-    view.appendChild(el('span', { class: 'code-empty' }, '// File kosong'));
+    view.appendChild(el('span', { class: 'code-empty' }, '// File is empty'));
     return view;
   }
   const lines = text.split(/\r?\n/);
@@ -120,12 +120,6 @@ function buildCodeView(text, ext) {
     ]);
     view.appendChild(lineEl);
   }
-  return view;
-}
-
-function buildCodeViewWithWrap(text, ext) {
-  const view = buildCodeView(text, ext);
-  view.classList.add('is-wrapped');
   return view;
 }
 
@@ -141,8 +135,8 @@ function buildSizeWarning(size, onContinue) {
   const sizeMb = (size / (1024 * 1024)).toFixed(2);
   return el('div', { class: 'size-warning' }, [
     el('div', { class: 'size-warning-icon' }, [icon(ICONS.file, 28)]),
-    el('p', { class: 'size-warning-title' }, 'Berkas terlalu besar untuk di-preview'),
-    el('p', { class: 'size-warning-desc' }, `Ukuran file: ${sizeMb} MB. Preview dibatasi hingga ${(TEXT_PREVIEW_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB.`),
+    el('p', { class: 'size-warning-title' }, 'File is too large to preview'),
+    el('p', { class: 'size-warning-desc' }, `File size: ${sizeMb} MB. Previews are limited to ${(TEXT_PREVIEW_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB by default.`),
     el('div', { class: 'size-warning-actions' }, [
       el(
         'button',
@@ -150,7 +144,7 @@ function buildSizeWarning(size, onContinue) {
           class: 'btn btn-primary',
           onClick: onContinue
         },
-        'Lanjutkan tetap preview'
+        'Continue preview anyway'
       )
     ])
   ]);
@@ -195,7 +189,7 @@ async function show(path, name) {
     'button',
     {
       class: 'modal-close',
-      'aria-label': 'Tutup',
+      'aria-label': 'Close',
       onClick: close
     },
     [icon(ICONS.close, 18)]
@@ -242,8 +236,8 @@ async function show(path, name) {
     await renderContent(path, name, key, isImage, isVideo, isJson, isCsv, isText, body);
   } catch (err) {
     clear(body);
-    body.appendChild(el('div', { class: 'empty-state' }, err.message || 'Gagal memuat preview.'));
-    showToast({ kind: 'error', message: err.message || 'Gagal memuat preview' });
+    body.appendChild(el('div', { class: 'empty-state' }, err.message || 'Failed to load preview.'));
+    showToast({ kind: 'error', message: err.message || 'Failed to load preview' });
   }
 }
 
@@ -306,7 +300,7 @@ async function renderTextWithSizeCheck(path, key, body) {
           body.appendChild(buildCodeView(text, key));
         } catch (err) {
           clear(body);
-          body.appendChild(el('div', { class: 'empty-state' }, err.message || 'Gagal memuat preview.'));
+          body.appendChild(el('div', { class: 'empty-state' }, err.message || 'Failed to load preview.'));
         }
       })
     );

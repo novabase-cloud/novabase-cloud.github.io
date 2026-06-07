@@ -3,6 +3,7 @@ import { formatBytes, getFileKey, getParentPath } from '../utils/format.js';
 import { navigate } from '../router.js';
 import { openPreview } from './preview.js';
 import { FILE_TYPES } from '../config.js';
+import { getSettings } from '../settings.js';
 
 const ICONS = {
   folder: '<path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"></path>',
@@ -30,7 +31,7 @@ function iconForItem(item) {
 
 function badgeForItem(item) {
   if (item.type === 'directory') {
-    return el('span', { class: 'badge badge-folder' }, 'directory');
+    return el('span', { class: 'badge badge-folder' }, 'folder');
   }
   const key = getFileKey(item.name);
   const cls = FILE_TYPES.VIDEO.includes(key)
@@ -47,7 +48,11 @@ function badgeForItem(item) {
   return el('span', { class: `badge ${cls}` }, key || 'file');
 }
 
-function renderRow(item, currentPath) {
+function navigateToFolder(fullPath) {
+  navigate({ path: fullPath, search: '', extension: '', sort: '', page: 1 });
+}
+
+function renderRow(item) {
   const isFolder = item.type === 'directory';
   const key = getFileKey(item.name);
   const previewable =
@@ -58,28 +63,27 @@ function renderRow(item, currentPath) {
       FILE_TYPES.CSV.includes(key) ||
       FILE_TYPES.TEXT.includes(key));
 
-  const nameCell = isFolder
-    ? el('td', { class: 'cell-name is-folder' }, [
-        el(
-          'a',
-          {
-            href: `#/${item.full_path}`,
-            class: 'name-link',
-            onClick: (e) => {
-              e.preventDefault();
-              navigate({
-                path: item.full_path,
-                search: '',
-                extension: '',
-                sort: '',
-                page: 1
-              });
-            }
-          },
-          [iconForItem(item), el('span', {}, item.name)]
-        )
-      ])
-    : el('td', { class: 'cell-name is-file' }, [iconForItem(item), el('span', {}, item.name)]);
+  const nameContent = isFolder
+    ? el(
+        'a',
+        {
+          href: `#/${item.full_path}`,
+          class: 'name-link',
+          onClick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            navigateToFolder(item.full_path);
+          }
+        },
+        [iconForItem(item), el('span', {}, item.name)]
+      )
+    : el('div', { class: 'name-link name-link-file' }, [iconForItem(item), el('span', {}, item.name)]);
+
+  const nameCell = el(
+    'td',
+    { class: isFolder ? 'cell-name is-folder' : 'cell-name is-file' },
+    [nameContent]
+  );
 
   const typeCell = el('td', {}, [badgeForItem(item)]);
 
@@ -99,10 +103,11 @@ function renderRow(item, currentPath) {
           class: 'btn btn-secondary',
           onClick: (e) => {
             e.preventDefault();
-            navigate({ path: item.full_path, search: '', extension: '', sort: '', page: 1 });
+            e.stopPropagation();
+            navigateToFolder(item.full_path);
           }
         },
-        'Buka'
+        'Open'
       )
     );
   } else {
@@ -111,7 +116,10 @@ function renderRow(item, currentPath) {
         'button',
         {
           class: 'btn btn-secondary',
-          onClick: () => openPreview({ path: item.full_path, name: item.name })
+          onClick: (e) => {
+            e.stopPropagation();
+            openPreview({ path: item.full_path, name: item.name });
+          }
         },
         'Preview'
       );
@@ -125,46 +133,89 @@ function renderRow(item, currentPath) {
           class: 'btn btn-primary',
           target: '_blank',
           rel: 'noopener noreferrer',
-          download: item.name
+          download: item.name,
+          onClick: (e) => e.stopPropagation()
         },
-        FILE_TYPES.VIDEO.includes(key) ? 'Stream / Download' : 'Download'
+        FILE_TYPES.VIDEO.includes(key) ? 'Stream' : 'Download'
       );
       actionCell.appendChild(document.createTextNode(' '));
       actionCell.appendChild(dlBtn);
     }
   }
 
-  return el('tr', {}, [nameCell, typeCell, sizeCell, actionCell]);
+  const tr = el(
+    'tr',
+    {
+      class: isFolder ? 'is-clickable' : '',
+      onClick: () => {
+        if (isFolder) navigateToFolder(item.full_path);
+      },
+      role: isFolder ? 'link' : 'row',
+      tabindex: isFolder ? '0' : '-1',
+      onKeydown: (e) => {
+        if (!isFolder) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigateToFolder(item.full_path);
+        }
+      }
+    },
+    [nameCell, typeCell, sizeCell, actionCell]
+  );
+
+  return tr;
 }
 
 function renderParentRow(currentPath) {
   if (!currentPath) return null;
   const parent = getParentPath(currentPath);
-  return el('tr', {}, [
-    el('td', { class: 'cell-name is-folder' }, [
-      el(
-        'a',
-        {
-          href: `#/${parent}`,
-          class: 'name-link',
-          onClick: (e) => {
-            e.preventDefault();
-            navigate({ path: parent, search: '', extension: '', sort: '', page: 1 });
-          }
-        },
-        [el('span', { style: { fontSize: '16px' } }, '..'), el('span', {}, 'Kembali ke direktori atas')]
-      )
-    ]),
-    el('td', { class: 'text-xs', style: { color: 'var(--color-text-subtle)' } }, '-'),
-    el('td', { class: 'text-xs', style: { color: 'var(--color-text-subtle)' } }, '-'),
-    el('td', { class: 'cell-actions' })
-  ]);
+  return el(
+    'tr',
+    {
+      class: 'is-clickable',
+      onClick: () => navigateToFolder(parent),
+      role: 'link',
+      tabindex: '0',
+      onKeydown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigateToFolder(parent);
+        }
+      }
+    },
+    [
+      el('td', { class: 'cell-name is-folder' }, [
+        el(
+          'a',
+          {
+            href: `#/${parent}`,
+            class: 'name-link',
+            onClick: (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigateToFolder(parent);
+            }
+          },
+          [el('span', { class: 'parent-ellipsis' }, '..'), el('span', {}, 'Go to parent directory')]
+        )
+      ]),
+      el('td', { class: 'text-xs', style: { color: 'var(--color-text-subtle)' } }, '-'),
+      el('td', { class: 'text-xs', style: { color: 'var(--color-text-subtle)' } }, '-'),
+      el('td', { class: 'cell-actions' })
+    ]
+  );
+}
+
+function applyHiddenFilter(items) {
+  const show = getSettings().showHidden;
+  if (show) return items;
+  return items.filter((it) => !it.name.startsWith('.'));
 }
 
 export function renderTable({ items, path, loading, error }) {
   if (loading) {
     return el('div', { class: 'data-card' }, [
-      el('div', { class: 'loading-state' }, [el('span', { class: 'spinner' }), el('span', {}, 'Memuat data...')])
+      el('div', { class: 'loading-state' }, [el('span', { class: 'spinner' }), el('span', {}, 'Loading data...')])
     ]);
   }
 
@@ -172,16 +223,17 @@ export function renderTable({ items, path, loading, error }) {
     return el('div', { class: 'data-card' }, [
       el('div', { class: 'empty-state' }, [
         el('div', { class: 'empty-state-icon' }, [icon(ICONS.file, 32)]),
-        el('p', {}, 'Tidak dapat memuat data.')
+        el('p', {}, 'Unable to load data.')
       ])
     ]);
   }
 
-  if (!items || items.length === 0) {
+  const filtered = applyHiddenFilter(items || []);
+  if (!filtered || filtered.length === 0) {
     return el('div', { class: 'data-card' }, [
       el('div', { class: 'empty-state' }, [
         el('div', { class: 'empty-state-icon' }, [icon(ICONS.folder, 32)]),
-        el('p', {}, 'Folder ini kosong.')
+        el('p', {}, 'This folder is empty.')
       ])
     ]);
   }
@@ -189,8 +241,8 @@ export function renderTable({ items, path, loading, error }) {
   const tbody = el('tbody', {});
   const parentRow = renderParentRow(path);
   if (parentRow) tbody.appendChild(parentRow);
-  for (const item of items) {
-    tbody.appendChild(renderRow(item, path));
+  for (const item of filtered) {
+    tbody.appendChild(renderRow(item));
   }
 
   return el('div', { class: 'data-card' }, [
@@ -198,10 +250,10 @@ export function renderTable({ items, path, loading, error }) {
       el('table', { class: 'data-table' }, [
         el('thead', {}, [
           el('tr', {}, [
-            el('th', { style: { width: '50%' } }, 'Nama Objek'),
-            el('th', { style: { width: '16%' } }, 'Tipe'),
-            el('th', { style: { width: '16%' } }, 'Ukuran'),
-            el('th', { class: 'text-right', style: { width: '18%' } }, 'Aksi')
+            el('th', { style: { width: '50%' } }, 'Name'),
+            el('th', { style: { width: '16%' } }, 'Type'),
+            el('th', { style: { width: '16%' } }, 'Size'),
+            el('th', { class: 'text-right', style: { width: '18%' } }, 'Actions')
           ])
         ]),
         tbody

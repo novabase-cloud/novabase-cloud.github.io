@@ -3,10 +3,18 @@ import { listFolder } from './api.js';
 
 const handlers = new Set();
 let currentToken = 0;
+let viewHandler = null;
 
 export function onRouteChange(fn) {
   handlers.add(fn);
   return () => handlers.delete(fn);
+}
+
+export function onViewChange(fn) {
+  viewHandler = fn;
+  return () => {
+    if (viewHandler === fn) viewHandler = null;
+  };
 }
 
 function parseHash() {
@@ -44,12 +52,26 @@ export function navigate({ path, search, extension, sort, page }) {
   }
 }
 
+function isSettingsRoute(parsed) {
+  return parsed.path === 'settings' || parsed.path === '__settings';
+}
+
 function emit(parsed) {
   for (const fn of handlers) {
     try {
       fn(parsed);
     } catch (err) {
       console.error('[router] handler error', err);
+    }
+  }
+}
+
+function emitViewChange(view) {
+  if (typeof viewHandler === 'function') {
+    try {
+      viewHandler(view);
+    } catch (err) {
+      console.error('[router] view handler error', err);
     }
   }
 }
@@ -82,7 +104,7 @@ async function loadListing(parsed) {
     if (status === 401) {
       store.set({ loading: false, error: 'unauthorized' });
     } else {
-      store.set({ loading: false, error: err.message || 'Gagal memuat data' });
+      store.set({ loading: false, error: err.message || 'Failed to load data' });
     }
   }
 }
@@ -90,12 +112,21 @@ async function loadListing(parsed) {
 function handleRoute() {
   const parsed = parseHash();
   emit(parsed);
+
+  if (isSettingsRoute(parsed)) {
+    currentToken++;
+    store.set({ loading: false });
+    emitViewChange('settings');
+    return;
+  }
+
+  emitViewChange('dashboard');
   loadListing(parsed);
 }
 
 export function initRouter() {
   window.addEventListener('hashchange', handleRoute);
-  if (!window.location.hash) {
+  if (!window.location.hash || window.location.hash === '#') {
     window.location.hash = '#/';
   } else {
     handleRoute();
@@ -105,3 +136,5 @@ export function initRouter() {
 export function reload() {
   handleRoute();
 }
+
+export { parseHash, buildHash };

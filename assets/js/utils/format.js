@@ -1,9 +1,25 @@
 export function formatBytes(bytes) {
   if (bytes == null || bytes === 0) return '--';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const value = bytes / Math.pow(1024, i);
-  return `${value.toFixed(value < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+  let sizeFormat = 'binary';
+  try {
+    const stored = localStorage.getItem('novabase.settings');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.sizeFormat === 'decimal' || parsed.sizeFormat === 'binary') {
+        sizeFormat = parsed.sizeFormat;
+      }
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  const base = sizeFormat === 'decimal' ? 1000 : 1024;
+  const units = sizeFormat === 'decimal'
+    ? ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    : ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(base)), units.length - 1);
+  const value = bytes / Math.pow(base, i);
+  const decimals = i === 0 ? 0 : value < 10 ? 2 : value < 100 ? 1 : 0;
+  return `${value.toFixed(decimals)} ${units[i]}`;
 }
 
 export function getExtension(name) {

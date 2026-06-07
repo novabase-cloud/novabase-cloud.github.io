@@ -3,7 +3,9 @@ export const API_BASE_URL = 'https://novabase-tiktok.mailtestvartext.workers.dev
 export const STORAGE_KEYS = {
   PASSWORD: 'novabase.tiktok.password',
   THEME: 'novabase.theme',
-  PATH_HISTORY: 'novabase.path.history'
+  PATH_HISTORY: 'novabase.path.history',
+  SETTINGS: 'novabase.settings',
+  SIDEBAR_OPEN: 'novabase.sidebar.open'
 };
 
 export const DEFAULTS = {
@@ -14,6 +16,8 @@ export const DEFAULTS = {
   SORT: '',
   PAGE: 1
 };
+
+export const HASH_PREFIX = '#h-';
 
 export const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 
