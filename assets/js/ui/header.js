@@ -1,0 +1,80 @@
+import { el, icon } from '../utils/dom.js';
+import { toggleTheme } from '../theme.js';
+import { logout } from '../auth.js';
+import { store } from '../store.js';
+import { showToast } from './toast.js';
+
+const ICONS = {
+  database: '<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>',
+  sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>'
+};
+
+let onLogoutCallback = null;
+
+export function initHeader(onLogout) {
+  onLogoutCallback = onLogout;
+}
+
+export function renderHeader() {
+  const themeIcon = el('span', {}, [icon(ICONS.moon, 18)]);
+
+  const themeBtn = el(
+    'button',
+    {
+      class: 'app-icon-button',
+      'aria-label': 'Toggle theme',
+      title: 'Toggle theme',
+      onClick: () => {
+        const next = toggleTheme();
+        updateThemeIcon(themeIcon, next);
+      }
+    },
+    [themeIcon]
+  );
+
+  const logoutBtn = el(
+    'button',
+    {
+      class: 'app-icon-button',
+      'aria-label': 'Logout',
+      title: 'Logout',
+      onClick: () => {
+        logout();
+        showToast({ kind: 'info', message: 'Sesi berakhir, silakan login ulang.' });
+        if (typeof onLogoutCallback === 'function') onLogoutCallback();
+      }
+    },
+    [icon(ICONS.logout, 18)]
+  );
+
+  return el('header', { class: 'app-header' }, [
+    el('div', { class: 'app-header-left' }, [
+      el('div', { class: 'app-header-brand' }, [
+        el('div', { class: 'app-header-icon' }, [icon(ICONS.database, 18)]),
+        el('span', { class: 'app-header-title' }, 'Novabase Hub'),
+        el('span', { class: 'app-header-version' }, 'v1.0.0')
+      ])
+    ]),
+    el('div', { class: 'app-header-right' }, [
+      el('div', { class: 'app-header-user' }, [
+        el('p', { class: 'app-header-user-label' }, 'Authenticated Pro'),
+        el('p', { class: 'app-header-user-name' }, 'Developer Mode')
+      ]),
+      el('div', { class: 'app-header-actions' }, [themeBtn, logoutBtn, el('div', { class: 'app-avatar' }, 'N')])
+    ])
+  ]);
+}
+
+function updateThemeIcon(target, theme) {
+  if (!target) return;
+  target.innerHTML = '';
+  target.appendChild(icon(theme === 'dark' ? ICONS.sun : ICONS.moon, 18));
+}
+
+export function syncHeaderTheme() {
+  const current = store.state.theme;
+  const iconSpan = document.querySelector('.app-header-actions .app-icon-button:first-child span');
+  if (iconSpan) updateThemeIcon(iconSpan, current);
+}
