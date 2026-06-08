@@ -26,7 +26,6 @@ function writeSession(value) {
       sessionStorage.removeItem(SESSION_FLAG);
     }
   } catch (_) {
-    /* ignore */
   }
 }
 
@@ -46,7 +45,6 @@ function writePersistent(value) {
       localStorage.removeItem(SESSION_KEY);
     }
   } catch (_) {
-    /* ignore */
   }
 }
 
@@ -66,7 +64,6 @@ function writeRememberFlag(remember) {
       localStorage.removeItem(REMEMBER_KEY);
     }
   } catch (_) {
-    /* ignore */
   }
 }
 
@@ -95,10 +92,7 @@ export async function validatePassword(candidate) {
 
 export async function login(candidate, { remember = true } = {}) {
   const valid = await validatePassword(candidate);
-  if (!valid) {
-    return false;
-  }
-
+  if (!valid) return false;
   writeSession(candidate);
   writeRememberFlag(remember);
   if (remember) {
@@ -118,7 +112,7 @@ export function logout() {
 export function buildKeyedUrl(path, params = {}) {
   const key = getPassword();
   if (!key) {
-    throw new Error('Belum terautentikasi');
+    throw new Error('Not authenticated');
   }
   const url = new URL(path || '/', API_BASE_URL);
   url.searchParams.set('key', key);

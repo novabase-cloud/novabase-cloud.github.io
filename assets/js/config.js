@@ -5,7 +5,8 @@ export const STORAGE_KEYS = {
   THEME: 'novabase.theme',
   PATH_HISTORY: 'novabase.path.history',
   SETTINGS: 'novabase.settings',
-  SIDEBAR_OPEN: 'novabase.sidebar.open'
+  SIDEBAR_OPEN: 'novabase.sidebar.open',
+  PREV_REPO: 'novabase.prev.repo'
 };
 
 export const DEFAULTS = {
@@ -20,6 +21,12 @@ export const DEFAULTS = {
 export const HASH_PREFIX = '#h-';
 
 export const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
+
+export const DEFAULT_REPO = {
+  id: 'Novabase/Tiktok',
+  label: 'Novabase/Tiktok',
+  type: 'dataset'
+};
 
 export const FILE_TYPES = {
   VIDEO: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv'],

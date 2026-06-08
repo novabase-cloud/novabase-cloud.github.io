@@ -1,49 +1,50 @@
 import { buildKeyedUrl } from './auth.js';
 import { fetchJSON, fetchRaw } from './utils/http.js';
 
-export async function listFolder({
-  path = '',
-  search = '',
-  extension = '',
-  sort = '',
-  page = 1,
-  limit = 0
-} = {}) {
+export async function listFolder({ path, search, extension, sort, page, limit, repo, repo_type }) {
   const params = {
-    search: search || undefined,
-    extension: extension || undefined,
-    sort: sort || undefined,
-    page: page > 1 ? page : undefined,
-    limit: limit > 0 ? limit : undefined
+    search: search || '',
+    extension: extension || '',
+    sort: sort || '',
+    page: String(page || 1),
+    limit: String(limit || 25),
+    repo: repo || 'Novabase/Tiktok',
+    type: repo_type || 'dataset'
   };
-
-  const url = buildKeyedUrl(path, params);
+  const url = buildKeyedUrl(path ? `/${path}` : '/', params);
   const result = await fetchJSON(url);
-
   if (!result.ok) {
-    const err = new Error(result.data?.error || `Request gagal (${result.status})`);
+    const err = new Error(result.data?.error || 'API error');
     err.status = result.status;
-    err.payload = result.data;
     throw err;
   }
-
   return result.data;
 }
 
-export async function fetchFileText(path) {
-  const url = buildKeyedUrl(path);
-  const response = await fetchRaw(url);
-  if (!response.ok) {
-    throw new Error(`Gagal memuat file (${response.status})`);
-  }
-  return response.text();
+export async function fetchFileText(path, repo, repoType) {
+  const params = {};
+  if (repo) params.repo = repo;
+  if (repoType) params.type = repoType;
+  const url = buildKeyedUrl(`/${path}`, params);
+  return await fetchRaw(url);
 }
 
-export async function fetchFileBlob(path) {
-  const url = buildKeyedUrl(path);
-  const response = await fetchRaw(url);
-  if (!response.ok) {
-    throw new Error(`Gagal memuat file (${response.status})`);
+export async function fetchFileBlob(path, repo, repoType) {
+  const params = {};
+  if (repo) params.repo = repo;
+  if (repoType) params.type = repoType;
+  const url = buildKeyedUrl(`/${path}`, params);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
+  return await res.blob();
+}
+
+export async function fetchRepos() {
+  const url = buildKeyedUrl('/_/repos');
+  try {
+    const result = await fetchJSON(url);
+    return (result?.data?.repos) || [];
+  } catch (_) {
+    return [];
   }
-  return response.blob();
 }

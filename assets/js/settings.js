@@ -1,6 +1,6 @@
-import { STORAGE_KEYS } from './config.js';
+import { STORAGE_KEYS, DEFAULT_REPO } from './config.js';
 
-const SETTINGS_KEY = STORAGE_KEYS.SETTINGS || 'novabase.settings';
+const SETTINGS_KEY = STORAGE_KEYS.SETTINGS;
 
 const DEFAULTS = {
   sizeFormat: 'binary',
@@ -8,17 +8,21 @@ const DEFAULTS = {
   defaultSort: '',
   itemsPerPage: 25,
   recentSearches: [],
-  compactList: false
-};
-
-export const CHANNELS = {
-  RECENT_SEARCHES: 'recentSearches'
+  compactList: false,
+  defaultView: 'table',
+  lastRepo: DEFAULT_REPO.id,
+  lastRepoType: DEFAULT_REPO.type,
+  customRepos: []
 };
 
 const MAX_RECENT_SEARCHES = 10;
 
 const listeners = new Set();
 let cache = null;
+
+export const CHANNELS = {
+  RECENT_SEARCHES: 'recentSearches'
+};
 
 function read() {
   try {
@@ -28,7 +32,6 @@ function read() {
       return { ...DEFAULTS, ...parsed };
     }
   } catch (_) {
-    /* ignore */
   }
   return { ...DEFAULTS };
 }
@@ -37,7 +40,6 @@ function write(settings) {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch (_) {
-    /* ignore */
   }
 }
 
@@ -88,6 +90,27 @@ export function removeRecentSearch(query) {
 
 export function clearRecentSearches() {
   updateSettings({ recentSearches: [] });
+}
+
+export function addCustomRepo(id, type) {
+  if (!id || !id.trim()) return;
+  const normalized = id.trim();
+  const settings = getSettings();
+  const existing = settings.customRepos.find((r) => r.id === normalized);
+  if (existing) return;
+  const updated = [...settings.customRepos, { id: normalized, type: type || 'dataset', addedAt: Date.now() }];
+  updateSettings({ customRepos: updated });
+}
+
+export function removeCustomRepo(id) {
+  if (!id) return;
+  const settings = getSettings();
+  const filtered = settings.customRepos.filter((r) => r.id !== id);
+  updateSettings({ customRepos: filtered });
+}
+
+export function getCustomRepos() {
+  return getSettings().customRepos || [];
 }
 
 export function subscribe(fn) {

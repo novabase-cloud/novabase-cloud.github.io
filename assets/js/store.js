@@ -1,4 +1,4 @@
-import { DEFAULTS } from './config.js';
+import { DEFAULTS, DEFAULT_REPO } from './config.js';
 
 const listeners = new Set();
 
@@ -14,7 +14,10 @@ export const store = {
     limit: DEFAULTS.ITEMS_PER_PAGE,
     loading: false,
     error: null,
-    data: null
+    data: null,
+    viewMode: 'table',
+    repo: { ...DEFAULT_REPO },
+    repos: []
   },
 
   subscribe(fn) {

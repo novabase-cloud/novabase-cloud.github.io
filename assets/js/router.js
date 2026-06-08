@@ -1,5 +1,7 @@
 import { store } from './store.js';
 import { listFolder } from './api.js';
+import { DEFAULT_REPO } from './config.js';
+import { getSettings } from './settings.js';
 
 const handlers = new Set();
 let currentToken = 0;
@@ -28,23 +30,36 @@ function parseHash() {
     search: params.get('q') || '',
     extension: params.get('ext') || '',
     sort: params.get('sort') || '',
-    page: parseInt(params.get('page') || '1', 10) || 1
+    page: parseInt(params.get('page') || '1', 10) || 1,
+    repo: params.get('repo') || DEFAULT_REPO.id,
+    repo_type: params.get('type') || DEFAULT_REPO.type
   };
 }
 
-function buildHash({ path, search, extension, sort, page }) {
+function buildHash({ path, search, extension, sort, page, repo, repo_type }) {
   const params = new URLSearchParams();
   if (search) params.set('q', search);
   if (extension) params.set('ext', extension);
   if (sort) params.set('sort', sort);
   if (page > 1) params.set('page', String(page));
+  if (repo && repo !== DEFAULT_REPO.id) params.set('repo', repo);
+  if (repo_type && repo_type !== DEFAULT_REPO.type) params.set('type', repo_type);
   const base = path ? `/${path}` : '/';
   const qs = params.toString();
   return `#${base}${qs ? `?${qs}` : ''}`;
 }
 
-export function navigate({ path, search, extension, sort, page }) {
-  const next = buildHash({ path, search, extension, sort, page });
+export function navigate({ path, search, extension, sort, page, repo, repo_type }) {
+  const s = getSettings();
+  const next = buildHash({
+    path,
+    search,
+    extension,
+    sort,
+    page: page || 1,
+    repo: repo || store.state.repo?.id || s.lastRepo || DEFAULT_REPO.id,
+    repo_type: repo_type || store.state.repo?.type || s.lastRepoType || DEFAULT_REPO.type
+  });
   if (next !== window.location.hash) {
     window.location.hash = next;
   } else {
@@ -85,7 +100,8 @@ async function loadListing(parsed) {
     search: parsed.search,
     extension: parsed.extension,
     sort: parsed.sort,
-    page: parsed.page
+    page: parsed.page,
+    repo: { id: parsed.repo, type: parsed.repo_type }
   });
 
   try {
@@ -94,7 +110,10 @@ async function loadListing(parsed) {
       search: parsed.search,
       extension: parsed.extension,
       sort: parsed.sort,
-      page: parsed.page
+      page: parsed.page,
+      limit: 25,
+      repo: parsed.repo,
+      repo_type: parsed.repo_type
     });
     if (token !== currentToken) return;
     store.set({ loading: false, data, error: null });
@@ -116,6 +135,7 @@ function handleRoute() {
   if (isSettingsRoute(parsed)) {
     currentToken++;
     store.set({ loading: false });
+    store.set({ repo: { id: parsed.repo, type: parsed.repo_type } });
     emitViewChange('settings');
     return;
   }
@@ -127,7 +147,9 @@ function handleRoute() {
 export function initRouter() {
   window.addEventListener('hashchange', handleRoute);
   if (!window.location.hash || window.location.hash === '#') {
-    window.location.hash = '#/';
+    const s = getSettings();
+    const hash = buildHash({ path: '', repo: s.lastRepo || DEFAULT_REPO.id, repo_type: s.lastRepoType || DEFAULT_REPO.type });
+    window.location.hash = hash;
   } else {
     handleRoute();
   }

@@ -3,16 +3,18 @@ import { initTheme } from './theme.js';
 import { isAuthenticated } from './auth.js';
 import { initRouter, onViewChange } from './router.js';
 import { store } from './store.js';
+import { DEFAULT_REPO } from './config.js';
 import { renderLogin, initLogin } from './ui/login.js';
 import { renderHeader, initHeader, syncHeaderTheme } from './ui/header.js';
-import { renderSidebar } from './ui/sidebar.js';
+import { renderSidebar, closeSidebar } from './ui/sidebar.js';
 import { renderToolbar } from './ui/toolbar.js';
 import { renderBreadcrumb } from './ui/breadcrumb.js';
 import { renderTable } from './ui/table.js';
+import { renderGrid } from './ui/grid.js';
 import { renderPagination } from './ui/pagination.js';
 import { renderSettingsView } from './ui/settings.js';
-import { subscribe as subscribeSettings } from './settings.js';
-import { closeSidebar } from './ui/sidebar.js';
+import { getSettings, updateSettings, subscribe as subscribeSettings } from './settings.js';
+import { fetchRepos } from './api.js';
 
 const root = $('#app');
 let slots = null;
@@ -33,24 +35,16 @@ function buildAppShell() {
     el('div', { class: 'app-footer-inner' }, [
       el('span', null, ['© 2026 Novabase Storage Hub.']),
       el('span', { class: 'app-footer-sep' }, '·'),
-      el('span', null, [
-        'index.html: ',
-        el('code', { id: 'footer-hash', class: 'footer-hash' }, ['computing…'])
-      ])
+      el('span', null, ['index.html: ', el('code', { id: 'footer-hash', class: 'footer-hash' }, ['computing…'])])
     ])
   ]);
 
   const main = el('main', { class: 'app-main' }, [
     el('div', { class: 'page-header' }, [
-      el('h1', { class: 'page-title' }, 'Novabase / TikTok Explorer'),
-      el('p', { class: 'page-subtitle' }, 'Browse and manage media files, sub-folders, and metadata through the Cloudflare Workers API proxy.')
+      el('h1', { class: 'page-title' }, 'Novabase / Hugging Face Explorer'),
+      el('p', { class: 'page-subtitle' }, 'Browse and manage files across your Hugging Face repositories through the Cloudflare Workers API proxy.')
     ]),
-    el('div', { id: 'view-dashboard' }, [
-      toolbarSlot,
-      breadcrumbSlot,
-      tableSlot,
-      paginationSlot
-    ]),
+    el('div', { id: 'view-dashboard' }, [toolbarSlot, breadcrumbSlot, tableSlot, paginationSlot]),
     el('div', { id: 'view-settings', style: { display: 'none' } }, [settingsSlot])
   ]);
 
@@ -73,12 +67,14 @@ function setActiveView(view) {
 }
 
 function renderTableArea(state) {
-  mount(slots.tableSlot, renderTable({
-    items: state.data?.results || [],
-    path: state.path,
-    loading: state.loading,
-    error: state.error
-  }));
+  const viewMode = state.viewMode || 'table';
+  const items = state.data?.results || [];
+
+  if (viewMode === 'grid') {
+    mount(slots.tableSlot, renderGrid({ items, path: state.path, loading: state.loading, error: state.error }));
+  } else {
+    mount(slots.tableSlot, renderTable({ items, path: state.path, loading: state.loading, error: state.error }));
+  }
 
   if (state.data?.pagination) {
     mount(slots.paginationSlot, renderPagination({
@@ -102,20 +98,21 @@ function renderToolbarOnce(state) {
     search: state.search,
     extension: state.extension,
     sort: state.sort,
-    path: state.path
+    path: state.path,
+    viewMode: state.viewMode
   }));
+}
+
+function refreshSettingsView() {
+  mount(slots.settingsSlot, renderSettingsView());
+  computeFooterHash();
 }
 
 function renderSettingsViewIfNeeded() {
   if (lastRenderedView === 'settings') return;
   mount(slots.settingsSlot, renderSettingsView());
-  updateFooterHash();
+  computeFooterHash();
   lastRenderedView = 'settings';
-}
-
-function refreshSettingsView() {
-  mount(slots.settingsSlot, renderSettingsView());
-  updateFooterHash();
 }
 
 function renderDashboardIfNeeded(state) {
@@ -136,6 +133,16 @@ function handleViewChange(view) {
   closeSidebar();
 }
 
+async function loadUserRepos() {
+  try {
+    const repos = await fetchRepos();
+    if (repos.length > 0) {
+      store.set({ repos });
+    }
+  } catch (_) {
+  }
+}
+
 function showLoginScreen() {
   mount(root, el('div', { id: 'login-container' }));
   initLogin(() => {
@@ -149,12 +156,18 @@ function showApp() {
   lastRenderedView = null;
   slots = buildAppShell();
   mount(root, slots.shell);
-  initHeader(() => {
-    showLoginScreen();
+  initHeader(() => { showLoginScreen(); });
+
+  const s = getSettings();
+  const initialView = s.defaultView || 'table';
+  store.set({
+    viewMode: initialView,
+    repo: { id: s.lastRepo || DEFAULT_REPO.id, type: s.lastRepoType || DEFAULT_REPO.type }
   });
 
   renderDashboardIfNeeded(store.state);
   syncHeaderTheme();
+  loadUserRepos();
 
   store.subscribe((state) => {
     if (currentView === 'dashboard') {
@@ -172,8 +185,18 @@ function showApp() {
     }
   });
 
-  onViewChange(handleViewChange);
+  store.subscribe((state) => {
+    const viewToggles = document.querySelectorAll('.view-toggle-btn');
+    viewToggles.forEach((btn) => {
+      const isTable = btn.querySelector('svg path')?.getAttribute('d')?.includes('M3 3h18');
+      btn.classList.toggle('is-active',
+        (isTable && state.viewMode === 'table') ||
+        (!isTable && state.viewMode === 'grid')
+      );
+    });
+  });
 
+  onViewChange(handleViewChange);
   initRouter();
   computeFooterHash();
 }
@@ -188,17 +211,11 @@ async function computeFooterHash() {
     const buf = new TextEncoder().encode(text);
     const digest = await crypto.subtle.digest('SHA-256', buf);
     const bytes = new Uint8Array(digest);
-    const hex = Array.from(bytes.slice(0, 4))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
+    const hex = Array.from(bytes.slice(0, 4)).map((b) => b.toString(16).padStart(2, '0')).join('');
     target.textContent = hex;
-  } catch (err) {
+  } catch (_) {
     target.textContent = 'unavailable';
   }
-}
-
-function updateFooterHash() {
-  computeFooterHash();
 }
 
 function bootstrap() {
