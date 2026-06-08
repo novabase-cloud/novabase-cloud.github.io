@@ -15,8 +15,36 @@ const ICONS = {
   doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>',
   text: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line>',
   file: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline>',
-  play: '<polygon points="5 3 19 12 5 21 5 3"></polygon>'
+  play: '<polygon points="5 3 19 12 5 21 5 3"></polygon>',
+  search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>'
 };
+
+let observer = null;
+
+function getObserver() {
+  if (!observer) {
+    observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          const src = el.dataset.src;
+          if (src) {
+            if (el.tagName === 'IMG') {
+              el.src = src;
+            } else if (el.tagName === 'VIDEO') {
+              el.src = src;
+              el.load();
+            }
+            el.removeAttribute('data-src');
+          }
+          observer.unobserve(el);
+        }
+      }
+    }, { rootMargin: '200px' });
+  }
+  return observer;
+}
 
 function iconForItem(item) {
   if (item.type === 'directory') return icon(ICONS.folder, 32);
@@ -65,32 +93,37 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-folder-icon' }, [icon(ICONS.folder, 36)])
     ]);
   } else if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') {
+    const img = el('img', {
+      class: 'card-thumb-img',
+      alt: item.name,
+      'data-src': item.download_url,
+      onError: function() {
+        this.style.display = 'none';
+        const next = this.nextElementSibling;
+        if (next) next.style.display = 'flex';
+      }
+    });
+    getObserver().observe(img);
     thumb = el('div', { class: 'card-thumb card-thumb-media' }, [
-      el('img', {
-        class: 'card-thumb-img',
-        src: item.download_url,
-        loading: 'lazy',
-        alt: item.name,
-        onError: function() {
-          this.style.display = 'none';
-          this.nextElementSibling.style.display = 'flex';
-        }
-      }),
+      img,
       el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.image, 28)])
     ]);
   } else if (FILE_TYPES.VIDEO.includes(key)) {
+    const video = el('video', {
+      class: 'card-thumb-video',
+      'data-src': item.download_url,
+      preload: 'none',
+      muted: true,
+      playsinline: true,
+      onError: function() {
+        this.style.display = 'none';
+        const next = this.nextElementSibling;
+        if (next) next.style.display = 'flex';
+      }
+    });
+    getObserver().observe(video);
     thumb = el('div', { class: 'card-thumb card-thumb-media' }, [
-      el('video', {
-        class: 'card-thumb-video',
-        src: item.download_url,
-        preload: 'metadata',
-        muted: true,
-        playsinline: true,
-        onError: function() {
-          this.style.display = 'none';
-          this.nextElementSibling.style.display = 'flex';
-        }
-      }),
+      video,
       el('span', { class: 'card-thumb-play' }, [icon(ICONS.play, 20)]),
       el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.video, 28)])
     ]);
@@ -205,7 +238,38 @@ export function renderGrid({ items, path, loading, error }) {
     cards.push(renderCard(item, false));
   }
 
+  const filterInput = el('input', {
+    type: 'text',
+    class: 'grid-filter-input',
+    placeholder: 'Filter cards...',
+    'aria-label': 'Filter grid cards',
+    autocomplete: 'off',
+    spellcheck: 'false',
+    onInput: function() {
+      const q = this.value.toLowerCase().trim();
+      const container = this.closest('.file-grid-wrap');
+      if (!container) return;
+      const allCards = container.querySelectorAll('.file-card');
+      for (const card of allCards) {
+        const nameEl = card.querySelector('.card-name-text');
+        const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+        card.style.display = (!q || name.includes(q)) ? '' : 'none';
+      }
+    }
+  });
+
+  const filterWrap = el('div', { class: 'grid-filter' }, [
+    el('span', { class: 'grid-filter-icon' }, [icon(ICONS.search, 14)]),
+    filterInput
+  ]);
+
+  const itemCount = filtered.length;
+
   return el('div', { class: 'file-grid-wrap' }, [
-    el('div', { class: 'file-grid' }, cards)
+    filterWrap,
+    el('div', { class: 'file-grid' }, cards),
+    el('div', { class: 'grid-footer' }, [
+      el('span', {}, `${itemCount} item${itemCount !== 1 ? 's' : ''}`)
+    ])
   ]);
 }
