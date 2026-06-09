@@ -51,6 +51,7 @@ function iconForItem(item) {
   if (item.type === 'directory') return icon(ICONS.folder, 32);
   const key = getFileKey(item.name);
   if (FILE_TYPES.VIDEO.includes(key)) return icon(ICONS.video, 32);
+  if (FILE_TYPES.AUDIO?.includes(key)) return icon(ICONS.volume, 32);
   if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') return icon(ICONS.image, 32);
   if (FILE_TYPES.JSON.includes(key)) return icon(ICONS.json, 32);
   if (['csv', 'tsv'].includes(key)) return icon(ICONS.csv, 32);
@@ -65,6 +66,7 @@ function badgeForItem(item) {
   }
   const key = getFileKey(item.name);
   const cls = FILE_TYPES.VIDEO.includes(key) ? 'badge-mp4'
+    : FILE_TYPES.AUDIO?.includes(key) ? 'badge-audio'
     : FILE_TYPES.JSON.includes(key) ? 'badge-json'
     : ['csv', 'tsv'].includes(key) ? 'badge-csv'
     : key === 'parquet' ? 'badge-parquet'
@@ -79,6 +81,7 @@ function renderCard(item, isParent) {
   const previewable =
     !isFolder &&
     (FILE_TYPES.VIDEO.includes(key) ||
+     FILE_TYPES.AUDIO?.includes(key) ||
      (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') ||
      FILE_TYPES.JSON.includes(key) ||
      FILE_TYPES.CSV.includes(key) ||
@@ -116,23 +119,15 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.image, 28)])
     ]);
   } else if (FILE_TYPES.VIDEO.includes(key)) {
-    const video = el('video', {
-      class: 'card-thumb-video',
-      'data-src': item.download_url,
-      preload: 'none',
-      muted: true,
-      playsinline: true,
-      onError: function() {
-        this.style.display = 'none';
-        const next = this.nextElementSibling;
-        if (next) next.style.display = 'flex';
-      }
-    });
-    getObserver().observe(video);
-    thumb = el('div', { class: 'card-thumb card-thumb-media' }, [
-      video,
-      el('span', { class: 'card-thumb-play' }, [icon(ICONS.play, 20)]),
+    thumb = el('div', { class: 'card-thumb card-thumb-media card-thumb-video' }, [
+      el('div', { class: 'card-thumb-video-placeholder' }, [
+        el('span', { class: 'card-thumb-play' }, [icon(ICONS.play, 28)])
+      ]),
       el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.video, 28)])
+    ]);
+  } else if (FILE_TYPES.AUDIO?.includes(key)) {
+    thumb = el('div', { class: 'card-thumb card-thumb-audio' }, [
+      el('span', { class: 'card-thumb-audio-icon' }, [icon(ICONS.volume, 36)])
     ]);
   } else {
     thumb = el('div', { class: 'card-thumb' }, [
@@ -168,7 +163,7 @@ function renderCard(item, isParent) {
         }, 'Preview'));
       }
       if (item.download_url) {
-        const label = FILE_TYPES.VIDEO.includes(key) ? 'Stream' : 'Download';
+        const label = FILE_TYPES.VIDEO.includes(key) ? 'Stream' : FILE_TYPES.AUDIO?.includes(key) ? 'Play' : 'Download';
         actionBtns.appendChild(el('a', {
           href: item.download_url,
           class: 'btn btn-primary btn-sm',

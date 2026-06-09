@@ -71,8 +71,16 @@ function onKey(e) {
   if (e.key === 'ArrowRight') { e.preventDefault(); goTo(currentIndex + 1); }
 }
 
-function togglePlay(el) {
-  if (el.paused || el.ended) { el.play(); } else { el.pause(); }
+async function togglePlay(video) {
+  if (video.paused || video.ended) {
+    if (!video.src && video.dataset.downloadUrl) {
+      video.src = video.dataset.downloadUrl;
+      video.load();
+    }
+    video.play();
+  } else {
+    video.pause();
+  }
 }
 
 function toggleFullscreen(el) {
@@ -169,11 +177,12 @@ function show(path, name) {
   const key = getFileKey(name);
   const isImage = FILE_TYPES.IMAGE.includes(key);
   const isVideo = FILE_TYPES.VIDEO.includes(key);
+  const isAudio = FILE_TYPES.AUDIO?.includes(key);
   const isJson = FILE_TYPES.JSON.includes(key);
   const isCsv = FILE_TYPES.CSV.includes(key);
   const isText = FILE_TYPES.TEXT.includes(key);
   const langHint = CODE_LANG_HINT[key] || (isJson ? 'JSON' : null);
-  const subtitle = langHint || (isVideo ? 'Video' : isImage ? 'Image' : isJson ? 'JSON' : isCsv ? 'CSV' : isText ? 'Text' : 'Unknown');
+  const subtitle = langHint || (isVideo ? 'Video' : isAudio ? 'Audio' : isImage ? 'Image' : isJson ? 'JSON' : isCsv ? 'CSV' : isText ? 'Text' : 'Unknown');
 
   const closeBtn = el('button', { class: 'modal-close', 'aria-label': 'Close', onClick: close }, [icon(ICONS.close, 18)]);
   const dlBtn = el('a', { class: 'btn btn-secondary', target: '_blank', rel: 'noopener noreferrer', href: buildDownloadHref(path), download: name }, [icon(ICONS.download, 14), el('span', {}, 'Download')]);
@@ -202,7 +211,7 @@ function show(path, name) {
   document.addEventListener('keydown', onKey);
   currentView = { path, name, key };
 
-  renderContent(path, name, key, isImage, isVideo, isJson, isCsv, isText, body);
+  renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv, isText, body);
 }
 
 function updateNavButtons() {
@@ -223,16 +232,26 @@ function buildCarousel(container) {
     const item = mediaItems[i];
     const key = getFileKey(item.name);
     const isVid = FILE_TYPES.VIDEO.includes(key);
+    const isAudio = FILE_TYPES.AUDIO?.includes(key);
     const thumb = el('div', { class: 'carousel-thumb', 'data-index': i, onClick: () => goTo(i) });
     if (isVid) {
-      thumb.appendChild(el('video', { preload: 'metadata', muted: true, playsinline: true, src: item.download_url, class: 'carousel-thumb-img' }));
-      thumb.appendChild(el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 12)]));
+      thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-video-placeholder' }, [
+        el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 24)])
+      ]));
+    } else if (isAudio) {
+      thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-audio' }, [
+        el('span', { class: 'carousel-thumb-audio-icon' }, [icon(ICONS.volume, 28)])
+      ]));
     } else {
       const isHeic = key === 'heic' || key === 'heif';
       if (isHeic) {
-        thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
-          el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
-        ]));
+        const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
+          width: THUMBNAIL_DEFAULTS.WIDTH,
+          height: THUMBNAIL_DEFAULTS.HEIGHT,
+          quality: THUMBNAIL_DEFAULTS.QUALITY,
+          format: THUMBNAIL_DEFAULTS.FORMAT,
+        });
+        thumb.appendChild(el('img', { loading: 'lazy', src: thumbUrl, class: 'carousel-thumb-img', alt: item.name }));
       } else {
         const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
           width: THUMBNAIL_DEFAULTS.WIDTH,
@@ -270,6 +289,7 @@ async function loadMedia(idx) {
   const key = getFileKey(item.name);
   const isVid = FILE_TYPES.VIDEO.includes(key);
   const isImg = FILE_TYPES.IMAGE.includes(key) && key !== 'svg';
+  const isAudio = FILE_TYPES.AUDIO?.includes(key);
 
   clear(slot);
   mount(slot, el('div', { class: 'modal-loading' }, [el('span', { class: 'spinner' })]));
@@ -279,17 +299,25 @@ async function loadMedia(idx) {
     const title = header.querySelector('.media-viewer-title');
     const sub = header.querySelector('.media-viewer-subtitle');
     if (title) title.textContent = item.name;
-    if (sub) sub.textContent = isVid ? 'Video' : 'Image';
+    if (sub) sub.textContent = isVid ? 'Video' : isAudio ? 'Audio' : 'Image';
   }
 
   try {
-    const blob = await fetchFileBlob(item.full_path);
-    const url = URL.createObjectURL(blob);
-    clear(slot);
-
     if (isVid) {
-      mount(slot, buildVideoPlayer(url));
+      const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
+        width: THUMBNAIL_DEFAULTS.WIDTH * 2,
+        height: THUMBNAIL_DEFAULTS.HEIGHT * 2,
+        quality: THUMBNAIL_DEFAULTS.QUALITY,
+        format: THUMBNAIL_DEFAULTS.FORMAT,
+      });
+      mount(slot, buildVideoPlayer(item.full_path, item.download_url, thumbUrl));
+    } else if (isAudio) {
+      const blob = await fetchAndCache(item.download_url, item.full_path);
+      const url = URL.createObjectURL(blob);
+      mount(slot, buildAudioPlayer(url, item.name));
     } else if (isImg) {
+      const blob = await fetchAndCache(item.download_url, item.full_path);
+      const url = URL.createObjectURL(blob);
       mount(slot, buildImageView(url, key));
     }
   } catch (err) {
@@ -298,15 +326,18 @@ async function loadMedia(idx) {
   }
 }
 
-function buildVideoPlayer(url) {
+function buildVideoPlayer(fullPath, downloadUrl, thumbUrl) {
   videoElement = null;
 
   const video = el('video', {
     class: 'video-player-element',
-    src: url,
-    preload: 'metadata',
-    playsinline: true
+    preload: 'none',
+    playsinline: true,
+    poster: thumbUrl
   });
+
+  video.dataset.fullPath = fullPath;
+  video.dataset.downloadUrl = downloadUrl;
 
   const seekBar = el('input', { type: 'range', class: 'video-seek-bar', min: 0, max: 1000, value: 0, step: 0.1 });
   const progressWrap = el('div', { class: 'video-progress' }, [seekBar]);
@@ -383,22 +414,32 @@ function buildVideoPlayer(url) {
   return container;
 }
 
-function renderContent(path, name, key, isImage, isVideo, isJson, isCsv, isText, body) {
+function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv, isText, body) {
   mount(body, el('div', { class: 'modal-loading' }, [el('span', { class: 'spinner' })]));
 
   (async () => {
     try {
       if (isVideo) {
-        const blob = await fetchFileBlob(path);
+        const thumbUrl = buildThumbnailUrlFromPath(path, {
+          width: THUMBNAIL_DEFAULTS.WIDTH * 2,
+          height: THUMBNAIL_DEFAULTS.HEIGHT * 2,
+          quality: THUMBNAIL_DEFAULTS.QUALITY,
+          format: THUMBNAIL_DEFAULTS.FORMAT,
+        });
+        const downloadUrl = buildDownloadHref(path);
+        clear(body);
+        body.appendChild(buildVideoPlayer(path, downloadUrl, thumbUrl));
+        return;
+      }
+      if (isAudio) {
+        const blob = await fetchAndCache(buildDownloadHref(path), path);
         const url = URL.createObjectURL(blob);
         clear(body);
-        body.appendChild(buildVideoView(url));
-        const video = body.querySelector('video');
-        if (video) video.addEventListener('loadeddata', () => URL.revokeObjectURL(url));
+        body.appendChild(buildAudioPlayer(url, name));
         return;
       }
       if (isImage && key !== 'svg') {
-        const blob = await fetchFileBlob(path);
+        const blob = await fetchAndCache(buildDownloadHref(path), path);
         const url = URL.createObjectURL(blob);
         clear(body);
         body.appendChild(buildImageView(url, key));
@@ -491,6 +532,28 @@ function buildImageView(url, ext) {
     ]));
   };
   return img;
+}
+
+function buildAudioPlayer(url, name) {
+  const audio = el('audio', {
+    class: 'audio-player-element',
+    src: url,
+    controls: true,
+    preload: 'metadata'
+  });
+
+  return el('div', { class: 'audio-player' }, [
+    el('div', { class: 'audio-player-visual' }, [
+      el('div', { class: 'audio-waveform' }, Array.from({ length: 32 }, (_, i) => 
+        el('div', { class: 'wave-bar', style: { animationDelay: `${i * 50}ms` } })
+      ))
+    ]),
+    el('div', { class: 'audio-player-info' }, [
+      el('span', { class: 'audio-title' }, name),
+      el('span', { class: 'audio-format' }, 'Audio')
+    ]),
+    audio
+  ]);
 }
 
 function buildVideoView(url) {

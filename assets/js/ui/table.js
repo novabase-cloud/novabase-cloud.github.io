@@ -12,15 +12,17 @@ const ICONS = {
   code: '<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>',
   json: '<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>',
   csv: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line>',
-  doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>',
-  text: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line>',
-  file: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline>'
+  doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>',
+  text: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line>',
+  file: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline>',
+  volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>'
 };
 
 function iconForItem(item) {
   if (item.type === 'directory') return icon(ICONS.folder, 18);
   const key = getFileKey(item.name);
   if (FILE_TYPES.VIDEO.includes(key)) return icon(ICONS.video, 18);
+  if (FILE_TYPES.AUDIO?.includes(key)) return icon(ICONS.volume, 18);
   if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') return icon(ICONS.image, 18);
   if (FILE_TYPES.JSON.includes(key)) return icon(ICONS.json, 18);
   if (['csv', 'tsv'].includes(key)) return icon(ICONS.csv, 18);
@@ -36,6 +38,8 @@ function badgeForItem(item) {
   const key = getFileKey(item.name);
   const cls = FILE_TYPES.VIDEO.includes(key)
     ? 'badge-mp4'
+    : FILE_TYPES.AUDIO?.includes(key)
+    ? 'badge-audio'
     : FILE_TYPES.JSON.includes(key)
     ? 'badge-json'
     : ['csv', 'tsv'].includes(key)
@@ -58,6 +62,7 @@ function renderRow(item) {
   const previewable =
     !isFolder &&
     (FILE_TYPES.VIDEO.includes(key) ||
+     FILE_TYPES.AUDIO?.includes(key) ||
       (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') ||
       FILE_TYPES.JSON.includes(key) ||
       FILE_TYPES.CSV.includes(key) ||
@@ -125,19 +130,20 @@ function renderRow(item) {
       );
       actionCell.appendChild(previewBtn);
     }
-    if (item.download_url) {
-      const dlBtn = el(
-        'a',
-        {
-          href: item.download_url,
-          class: 'btn btn-primary',
-          target: '_blank',
-          rel: 'noopener noreferrer',
-          download: item.name,
-          onClick: (e) => e.stopPropagation()
-        },
-        FILE_TYPES.VIDEO.includes(key) ? 'Stream' : 'Download'
-      );
+      if (item.download_url) {
+        const label = FILE_TYPES.VIDEO.includes(key) ? 'Stream' : FILE_TYPES.AUDIO?.includes(key) ? 'Play' : 'Download';
+        const dlBtn = el(
+          'a',
+          {
+            href: item.download_url,
+            class: 'btn btn-primary',
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            download: item.name,
+            onClick: (e) => e.stopPropagation()
+          },
+          label
+        );
       actionCell.appendChild(document.createTextNode(' '));
       actionCell.appendChild(dlBtn);
     }

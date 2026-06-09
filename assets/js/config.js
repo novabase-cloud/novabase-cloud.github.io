@@ -31,7 +31,8 @@ export const THUMBNAIL_DEFAULTS = {
 
 export const FILE_TYPES = {
   VIDEO: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv'],
-  IMAGE: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif'],
+  AUDIO: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus', 'webm'],
+  IMAGE: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'avif', 'tiff', 'tif'],
   JSON: ['json'],
   CSV: ['csv', 'tsv'],
   TEXT: [
