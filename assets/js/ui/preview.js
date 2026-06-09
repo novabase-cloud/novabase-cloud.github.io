@@ -1,8 +1,8 @@
 import { el, icon, clear, mount } from '../utils/dom.js';
-import { fetchFileText, fetchFileBlob } from '../api.js';
+import { fetchFileText, fetchFileBlob, buildThumbnailUrlFromPath } from '../api.js';
 import { getPassword } from '../auth.js';
 import { store } from '../store.js';
-import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT } from '../config.js';
+import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT, THUMBNAIL_DEFAULTS } from '../config.js';
 import { getFileKey } from '../utils/format.js';
 import { showToast } from './toast.js';
 
@@ -223,12 +223,30 @@ function buildCarousel(container) {
     const key = getFileKey(item.name);
     const isVid = FILE_TYPES.VIDEO.includes(key);
     const thumb = el('div', { class: 'carousel-thumb', 'data-index': i, onClick: () => goTo(i) });
-    const img = isVid
-      ? el('video', { preload: 'metadata', muted: true, playsinline: true, src: item.download_url, class: 'carousel-thumb-img' })
-      : el('img', { loading: 'lazy', src: item.download_url, class: 'carousel-thumb-img', alt: item.name });
-    thumb.appendChild(img);
     if (isVid) {
+      thumb.appendChild(el('video', { preload: 'metadata', muted: true, playsinline: true, src: item.download_url, class: 'carousel-thumb-img' }));
       thumb.appendChild(el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 12)]));
+    } else {
+      const isHeic = key === 'heic' || key === 'heif';
+      if (isHeic) {
+        thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
+          el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
+        ]));
+      } else {
+        const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
+          width: THUMBNAIL_DEFAULTS.WIDTH,
+          height: THUMBNAIL_DEFAULTS.HEIGHT,
+          quality: THUMBNAIL_DEFAULTS.QUALITY,
+          format: THUMBNAIL_DEFAULTS.FORMAT,
+        });
+        const img = el('img', { loading: 'lazy', src: thumbUrl, class: 'carousel-thumb-img', alt: item.name });
+        img.onerror = () => {
+          img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
+            el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
+          ]));
+        };
+        thumb.appendChild(img);
+      }
     }
     container.appendChild(thumb);
   }
@@ -271,8 +289,7 @@ async function loadMedia(idx) {
     if (isVid) {
       mount(slot, buildVideoPlayer(url));
     } else if (isImg) {
-      const img = el('img', { class: 'modal-image', src: url, alt: item.name });
-      mount(slot, img);
+      mount(slot, buildImageView(url, key));
     }
   } catch (err) {
     clear(slot);
@@ -383,7 +400,7 @@ function renderContent(path, name, key, isImage, isVideo, isJson, isCsv, isText,
         const blob = await fetchFileBlob(path);
         const url = URL.createObjectURL(blob);
         clear(body);
-        body.appendChild(buildImageView(url));
+        body.appendChild(buildImageView(url, key));
         return;
       }
       if (isJson) {
@@ -455,8 +472,24 @@ function buildCodeView(text, ext) {
   return view;
 }
 
-function buildImageView(url) {
-  return el('img', { src: url, alt: 'Preview', class: 'modal-image' });
+function buildImageView(url, ext) {
+  const isHeic = ext === 'heic' || ext === 'heif';
+  if (isHeic) {
+    return el('div', { class: 'modal-image-placeholder' }, [
+      el('div', { class: 'placeholder-icon' }, ['🖼']),
+      el('p', {}, 'HEIC/HEIF preview not supported in browser'),
+      el('p', { class: 'placeholder-hint' }, 'Download the file to view it')
+    ]);
+  }
+  const img = el('img', { src: url, alt: 'Preview', class: 'modal-image' });
+  img.onerror = () => {
+    img.replaceWith(el('div', { class: 'modal-image-placeholder' }, [
+      el('div', { class: 'placeholder-icon' }, ['🖼']),
+      el('p', {}, 'Unable to load image'),
+      el('p', { class: 'placeholder-hint' }, 'Format may not be supported by browser')
+    ]));
+  };
+  return img;
 }
 
 function buildVideoView(url) {

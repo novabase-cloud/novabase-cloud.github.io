@@ -3,7 +3,6 @@ import { initTheme } from './theme.js';
 import { isAuthenticated } from './auth.js';
 import { initRouter, onViewChange } from './router.js';
 import { store } from './store.js';
-import { DEFAULT_REPO } from './config.js';
 import { renderLogin, initLogin } from './ui/login.js';
 import { renderHeader, initHeader, syncHeaderTheme } from './ui/header.js';
 import { renderSidebar, closeSidebar } from './ui/sidebar.js';
@@ -69,6 +68,18 @@ function setActiveView(view) {
 function renderTableArea(state) {
   const viewMode = state.viewMode || 'table';
   const items = state.data?.results || [];
+
+  if (!state.repo?.id) {
+    const prompt = el('div', { class: 'empty-state' }, [
+      el('div', { class: 'empty-state-icon' }, ['📁']),
+      el('h3', {}, 'No Repository Selected'),
+      el('p', {}, 'Add a Hugging Face repository from the sidebar to start browsing.'),
+      el('button', { class: 'btn btn-primary', onClick: () => { document.querySelector('.sidebar-add-repo-btn')?.click(); } }, 'Add Repository')
+    ]);
+    mount(slots.tableSlot, prompt);
+    mount(slots.paginationSlot, null);
+    return;
+  }
 
   if (viewMode === 'grid') {
     mount(slots.tableSlot, renderGrid({ items, path: state.path, loading: state.loading, error: state.error }));
@@ -160,9 +171,10 @@ function showApp() {
 
   const s = getSettings();
   const initialView = s.defaultView || 'table';
+  const initialRepo = s.lastRepo ? { id: s.lastRepo, type: s.lastRepoType || 'dataset' } : null;
   store.set({
     viewMode: initialView,
-    repo: { id: s.lastRepo || DEFAULT_REPO.id, type: s.lastRepoType || DEFAULT_REPO.type }
+    repo: initialRepo
   });
 
   renderDashboardIfNeeded(store.state);

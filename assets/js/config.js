@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'https://novabase-tiktok.mailtestvartext.workers.dev';
+export const API_BASE_URL = 'https://novabase-cloud.mailtestvartext.workers.dev';
 
 export const STORAGE_KEYS = {
   PASSWORD: 'novabase.tiktok.password',
@@ -22,15 +22,16 @@ export const HASH_PREFIX = '#h-';
 
 export const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 
-export const DEFAULT_REPO = {
-  id: 'Novabase/Tiktok',
-  label: 'Novabase/Tiktok',
-  type: 'dataset'
+export const THUMBNAIL_DEFAULTS = {
+  WIDTH: 300,
+  HEIGHT: 300,
+  QUALITY: 80,
+  FORMAT: 'auto',
 };
 
 export const FILE_TYPES = {
   VIDEO: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv'],
-  IMAGE: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'],
+  IMAGE: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif'],
   JSON: ['json'],
   CSV: ['csv', 'tsv'],
   TEXT: [

@@ -81,10 +81,10 @@ export function isAuthenticated() {
 
 export async function validatePassword(candidate) {
   if (!candidate) return false;
-  const url = `${API_BASE_URL}/?key=${encodeURIComponent(candidate)}`;
+  const url = `${API_BASE_URL}/_/verify?key=${encodeURIComponent(candidate)}`;
   try {
     const result = await fetchJSON(url);
-    return result.ok;
+    return result.ok && result.data?.ok === true;
   } catch (_) {
     return false;
   }

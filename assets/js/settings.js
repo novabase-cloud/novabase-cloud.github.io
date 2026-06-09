@@ -1,4 +1,4 @@
-import { STORAGE_KEYS, DEFAULT_REPO } from './config.js';
+import { STORAGE_KEYS } from './config.js';
 
 const SETTINGS_KEY = STORAGE_KEYS.SETTINGS;
 
@@ -10,8 +10,8 @@ const DEFAULTS = {
   recentSearches: [],
   compactList: false,
   defaultView: 'table',
-  lastRepo: DEFAULT_REPO.id,
-  lastRepoType: DEFAULT_REPO.type,
+  lastRepo: null,
+  lastRepoType: 'dataset',
   customRepos: []
 };
 

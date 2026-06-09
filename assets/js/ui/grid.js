@@ -2,8 +2,9 @@ import { el, icon } from '../utils/dom.js';
 import { formatBytes, getFileKey, getParentPath } from '../utils/format.js';
 import { navigate } from '../router.js';
 import { openPreview } from './preview.js';
-import { FILE_TYPES } from '../config.js';
+import { FILE_TYPES, THUMBNAIL_DEFAULTS } from '../config.js';
 import { getSettings } from '../settings.js';
+import { buildThumbnailUrlFromPath } from '../api.js';
 
 const ICONS = {
   folder: '<path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"></path>',
@@ -93,10 +94,16 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-folder-icon' }, [icon(ICONS.folder, 36)])
     ]);
   } else if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') {
+    const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
+      width: THUMBNAIL_DEFAULTS.WIDTH,
+      height: THUMBNAIL_DEFAULTS.HEIGHT,
+      quality: THUMBNAIL_DEFAULTS.QUALITY,
+      format: THUMBNAIL_DEFAULTS.FORMAT,
+    });
     const img = el('img', {
       class: 'card-thumb-img',
       alt: item.name,
-      'data-src': item.download_url,
+      'data-src': thumbUrl,
       onError: function() {
         this.style.display = 'none';
         const next = this.nextElementSibling;

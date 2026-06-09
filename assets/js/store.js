@@ -1,4 +1,4 @@
-import { DEFAULTS, DEFAULT_REPO } from './config.js';
+import { DEFAULTS } from './config.js';
 
 const listeners = new Set();
 
@@ -16,7 +16,7 @@ export const store = {
     error: null,
     data: null,
     viewMode: 'table',
-    repo: { ...DEFAULT_REPO },
+    repo: null,
     repos: []
   },
 
@@ -51,5 +51,9 @@ export const store = {
       error: null,
       data: null
     });
+  },
+
+  getAuthKey() {
+    return this.state.password;
   }
 };
