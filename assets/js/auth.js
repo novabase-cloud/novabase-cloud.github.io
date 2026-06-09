@@ -1,78 +1,50 @@
 import { STORAGE_KEYS, API_BASE_URL } from './config.js';
 import { fetchJSON } from './utils/http.js';
 
-const SESSION_KEY = STORAGE_KEYS.PASSWORD;
+const PASSWORD_KEY = STORAGE_KEYS.PASSWORD;
 const REMEMBER_KEY = `${STORAGE_KEYS.PASSWORD}.remember`;
 const SESSION_FLAG = `${STORAGE_KEYS.PASSWORD}.session`;
 
 let cachedPassword = null;
 
-function readSession() {
+function clearAllStorage() {
+  cachedPassword = null;
+  try {
+    sessionStorage.removeItem(SESSION_FLAG);
+  } catch (_) {}
+  try {
+    localStorage.removeItem(PASSWORD_KEY);
+  } catch (_) {}
+  try {
+    localStorage.removeItem(REMEMBER_KEY);
+  } catch (_) {}
+}
+
+export function getPassword() {
   if (cachedPassword) return cachedPassword;
   try {
-    cachedPassword = sessionStorage.getItem(SESSION_FLAG);
-  } catch (_) {
-    cachedPassword = null;
-  }
-  return cachedPassword;
-}
-
-function writeSession(value) {
-  cachedPassword = value;
-  try {
-    if (value) {
-      sessionStorage.setItem(SESSION_FLAG, value);
-    } else {
-      sessionStorage.removeItem(SESSION_FLAG);
+    const session = sessionStorage.getItem(SESSION_FLAG);
+    if (session) {
+      cachedPassword = session;
+      return session;
     }
-  } catch (_) {
-  }
-}
-
-function readPersistent() {
+  } catch (_) {}
   try {
-    return localStorage.getItem(SESSION_KEY);
-  } catch (_) {
-    return null;
-  }
-}
-
-function writePersistent(value) {
-  try {
-    if (value) {
-      localStorage.setItem(SESSION_KEY, value);
-    } else {
-      localStorage.removeItem(SESSION_KEY);
+    const persistent = localStorage.getItem(PASSWORD_KEY);
+    if (persistent) {
+      cachedPassword = persistent;
+      return persistent;
     }
-  } catch (_) {
-  }
+  } catch (_) {}
+  return null;
 }
 
-function readRememberFlag() {
+export function isRememberEnabled() {
   try {
     return localStorage.getItem(REMEMBER_KEY) === '1';
   } catch (_) {
     return false;
   }
-}
-
-function writeRememberFlag(remember) {
-  try {
-    if (remember) {
-      localStorage.setItem(REMEMBER_KEY, '1');
-    } else {
-      localStorage.removeItem(REMEMBER_KEY);
-    }
-  } catch (_) {
-  }
-}
-
-export function getPassword() {
-  return readSession() || readPersistent();
-}
-
-export function isRememberEnabled() {
-  return readRememberFlag();
 }
 
 export function isAuthenticated() {
@@ -93,20 +65,26 @@ export async function validatePassword(candidate) {
 export async function login(candidate, { remember = true } = {}) {
   const valid = await validatePassword(candidate);
   if (!valid) return false;
-  writeSession(candidate);
-  writeRememberFlag(remember);
-  if (remember) {
-    writePersistent(candidate);
-  } else {
-    writePersistent(null);
-  }
+
+  cachedPassword = candidate;
+
+  try {
+    if (remember) {
+      localStorage.setItem(PASSWORD_KEY, candidate);
+      localStorage.setItem(REMEMBER_KEY, '1');
+      sessionStorage.removeItem(SESSION_FLAG);
+    } else {
+      sessionStorage.setItem(SESSION_FLAG, candidate);
+      localStorage.removeItem(PASSWORD_KEY);
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+  } catch (_) {}
+
   return true;
 }
 
 export function logout() {
-  writeSession(null);
-  writePersistent(null);
-  writeRememberFlag(false);
+  clearAllStorage();
 }
 
 export function buildKeyedUrl(path, params = {}) {

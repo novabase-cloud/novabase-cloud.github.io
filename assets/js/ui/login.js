@@ -19,15 +19,16 @@ function buildScreen() {
     class: 'login-input',
     id: 'login-password',
     placeholder: 'Enter access key',
-    autocomplete: 'current-password',
+    autocomplete: 'new-password',
     spellcheck: 'false',
-    'aria-label': 'Access key'
+    'aria-label': 'Access key',
+    'data-lpignore': 'true'
   });
 
   const rememberInput = el('input', {
     type: 'checkbox',
     id: 'login-remember',
-    checked: isRememberEnabled()
+    checked: true
   });
 
   const submitBtn = el(
@@ -59,7 +60,7 @@ function buildScreen() {
     'form',
     {
       class: 'login-form',
-      autocomplete: 'on',
+      autocomplete: 'off',
       novalidate: true,
       onSubmit: async (event) => {
         event.preventDefault();
