@@ -5,6 +5,7 @@ import { store } from '../store.js';
 import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT, THUMBNAIL_DEFAULTS } from '../config.js';
 import { getFileKey } from '../utils/format.js';
 import { showToast } from './toast.js';
+import { mediaCache, fetchAndCache, createObjectURLFromCache } from '../utils/mediaCache.js';
 
 const ICONS = {
   close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
