@@ -30,7 +30,6 @@ let backdrop = null;
 let currentView = null;
 let mediaItems = [];
 let currentIndex = -1;
-let videoElement = null;
 
 function isMedia(key) {
   return FILE_TYPES.IMAGE.includes(key) || FILE_TYPES.VIDEO.includes(key);
@@ -45,6 +44,12 @@ function buildDownloadHref(path) {
 }
 
 function close() {
+  const video = getCurrentVideo();
+  if (video) {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
   if (backdrop && backdrop.parentNode) {
     backdrop.parentNode.removeChild(backdrop);
   }
@@ -52,32 +57,90 @@ function close() {
   currentView = null;
   mediaItems = [];
   currentIndex = -1;
-  videoElement = null;
-  document.removeEventListener('keydown', onKey);
+  document.removeEventListener('keydown', onKey, true);
+}
+
+function getCurrentVideo() {
+  if (!backdrop) return null;
+  return backdrop.querySelector('.video-player-element');
 }
 
 function onKey(e) {
-  if (e.key === 'Escape') { close(); return; }
-  if (videoElement) {
-    if (e.key === ' ') { e.preventDefault(); togglePlay(videoElement); return; }
-    if (e.key === 'ArrowUp') { e.preventDefault(); videoElement.volume = Math.min(1, +(videoElement.volume + 0.1).toFixed(2)); videoElement.muted = false; return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); videoElement.volume = Math.max(0, +(videoElement.volume - 0.1).toFixed(2)); return; }
-    if (e.key === 'm' || e.key === 'M') { videoElement.muted = !videoElement.muted; return; }
-    if (e.key === 'f' || e.key === 'F') { toggleFullscreen(videoElement); return; }
+  if (!backdrop) return;
+  
+  if (e.key === 'Escape') { 
+    e.preventDefault();
+    e.stopPropagation();
+    close(); 
+    return; 
   }
-  if (e.key === ' ') { e.preventDefault(); return; }
+  
+  const video = getCurrentVideo();
+  if (video) {
+    if (e.key === ' ') { 
+      e.preventDefault(); 
+      e.stopPropagation();
+      togglePlay(video); 
+      return; 
+    }
+    if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); video.volume = Math.min(1, +(video.volume + 0.1).toFixed(2)); video.muted = false; return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); video.volume = Math.max(0, +(video.volume - 0.1).toFixed(2)); return; }
+    if (e.key === 'm' || e.key === 'M') { e.preventDefault(); e.stopPropagation(); video.muted = !video.muted; return; }
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); e.stopPropagation(); toggleFullscreen(video); return; }
+  }
+  
   if (!mediaItems.length) return;
-  if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(currentIndex - 1); }
-  if (e.key === 'ArrowRight') { e.preventDefault(); goTo(currentIndex + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); goTo(currentIndex - 1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); goTo(currentIndex + 1); }
 }
 
 async function togglePlay(video) {
+  if (!video) return;
+  if (video.dataset.loading === 'true') return;
+  
+  const container = video.closest('.video-player');
+  const loadingOverlay = container?.querySelector('.video-loading-overlay');
+  
   if (video.paused || video.ended) {
     if (!video.src && video.dataset.downloadUrl) {
+      video.dataset.loading = 'true';
+      if (loadingOverlay) loadingOverlay.style.display = 'flex';
       video.src = video.dataset.downloadUrl;
       video.load();
+      
+      try {
+        await new Promise((resolve, reject) => {
+          const onCanPlay = () => {
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            resolve();
+          };
+          const onError = () => {
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            reject(new Error('Failed to load video'));
+          };
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onError, { once: true });
+          
+          // Timeout as fallback
+          setTimeout(() => {
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            resolve();
+          }, 10000);
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        video.dataset.loading = 'false';
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+      }
     }
-    video.play();
+    
+    if (video.dataset.loading !== 'true') {
+      video.play().catch(() => {});
+    }
   } else {
     video.pause();
   }
@@ -131,6 +194,7 @@ function getMediaItems() {
 }
 
 function showMediaViewer(path, name) {
+  if (backdrop) close();
   mediaItems = getMediaItems();
   currentIndex = mediaItems.findIndex((item) => item.full_path === path);
 
@@ -162,7 +226,7 @@ function showMediaViewer(path, name) {
   backdrop = el('div', { class: 'media-viewer-backdrop', onClick: (e) => { if (e.target === backdrop) close(); }, onTouchStart, onTouchEnd }, [viewer]);
 
   document.body.appendChild(backdrop);
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true);
   currentView = { path, name, key };
 
   buildCarousel(carousel);
@@ -172,6 +236,7 @@ function showMediaViewer(path, name) {
 }
 
 function show(path, name) {
+  if (backdrop) close();
   mediaItems = [];
   currentIndex = -1;
   const key = getFileKey(name);
@@ -208,7 +273,7 @@ function show(path, name) {
   backdrop = el('div', { class: 'modal-backdrop', onClick: (e) => { if (e.target === backdrop) close(); } }, [modal]);
 
   document.body.appendChild(backdrop);
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true);
   currentView = { path, name, key };
 
   renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv, isText, body);
@@ -282,7 +347,12 @@ function updateCarousel() {
 }
 
 async function loadMedia(idx) {
-  if (videoElement) { videoElement.pause(); videoElement = null; }
+  const prevVideo = getCurrentVideo();
+  if (prevVideo) {
+    prevVideo.pause();
+    prevVideo.removeAttribute('src');
+    prevVideo.load();
+  }
   const slot = backdrop?.querySelector('.media-slot');
   if (!slot || idx < 0 || idx >= mediaItems.length) return;
   const item = mediaItems[idx];
@@ -327,8 +397,6 @@ async function loadMedia(idx) {
 }
 
 function buildVideoPlayer(fullPath, downloadUrl, thumbUrl) {
-  videoElement = null;
-
   const video = el('video', {
     class: 'video-player-element',
     preload: 'none',
@@ -364,7 +432,11 @@ function buildVideoPlayer(fullPath, downloadUrl, thumbUrl) {
   const row = el('div', { class: 'video-controls-row' }, [playBtn, rwBtn, ffBtn, timeEl, volWrap, speedSel, fsBtn]);
   const controls = el('div', { class: 'video-controls' }, [progressWrap, row]);
 
-  const container = el('div', { class: 'video-player' }, [video, controls]);
+  const container = el('div', { class: 'video-player' }, [
+    video, 
+    el('div', { class: 'video-loading-overlay', style: { display: 'none' } }, [el('span', { class: 'spinner' })]),
+    controls
+  ]);
 
   function updatePlayIcon() { clear(playBtn); playBtn.appendChild(icon(video.paused ? ICONS.play : ICONS.pause, 14)); }
   function updateMuteIcon() { clear(muteBtn); muteBtn.appendChild(icon(video.muted || video.volume === 0 ? ICONS.volumeX : ICONS.volume, 14)); }
@@ -410,7 +482,6 @@ function buildVideoPlayer(fullPath, downloadUrl, thumbUrl) {
   video.addEventListener('play', showControls);
   video.addEventListener('pause', () => container.classList.add('show-controls'));
 
-  videoElement = video;
   return container;
 }
 
@@ -596,6 +667,7 @@ async function renderTextWithSizeCheck(path, key, body) {
 }
 
 export function openPreview({ path, name }) {
+  if (currentView && currentView.path === path) return;
   const key = getFileKey(name);
   if (isMedia(key)) {
     showMediaViewer(path, name);
