@@ -1,6 +1,6 @@
 import { $, el, mount } from './utils/dom.js';
 import { initTheme } from './theme.js';
-import { isAuthenticated } from './auth.js';
+import { isAuthenticated, validatePassword, logout } from './auth.js';
 import { initRouter, onViewChange } from './router.js';
 import { store } from './store.js';
 import { renderLogin, initLogin } from './ui/login.js';
@@ -14,6 +14,7 @@ import { renderPagination } from './ui/pagination.js';
 import { renderSettingsView } from './ui/settings.js';
 import { getSettings, updateSettings, subscribe as subscribeSettings } from './settings.js';
 import { fetchRepos } from './api.js';
+import { setOnUnauthorized } from './utils/http.js';
 
 const root = $('#app');
 let slots = null;
@@ -230,13 +231,32 @@ async function computeFooterHash() {
   }
 }
 
+async function verifyAuthOnStartup() {
+  if (!isAuthenticated()) return false;
+  const key = (await import('./auth.js')).getPassword();
+  if (!key) return false;
+  const valid = await validatePassword(key);
+  if (!valid) {
+    logout();
+    return false;
+  }
+  return true;
+}
+
 function bootstrap() {
   initTheme();
-  if (isAuthenticated()) {
-    showApp();
-  } else {
+
+  setOnUnauthorized(() => {
     showLoginScreen();
-  }
+  });
+
+  verifyAuthOnStartup().then((authed) => {
+    if (authed) {
+      showApp();
+    } else {
+      showLoginScreen();
+    }
+  });
 }
 
 if (document.readyState === 'loading') {

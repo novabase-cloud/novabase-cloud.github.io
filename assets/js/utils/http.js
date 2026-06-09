@@ -1,3 +1,18 @@
+import { logout } from '../auth.js';
+
+let onUnauthorized = null;
+
+export function setOnUnauthorized(callback) {
+  onUnauthorized = callback;
+}
+
+function handleUnauthorized() {
+  logout();
+  if (typeof onUnauthorized === 'function') {
+    onUnauthorized();
+  }
+}
+
 export async function fetchJSON(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -6,6 +21,10 @@ export async function fetchJSON(url, options = {}) {
       ...(options.headers || {})
     }
   });
+
+  if (response.status === 401) {
+    handleUnauthorized();
+  }
 
   const text = await response.text();
   let data = null;
@@ -27,5 +46,11 @@ export async function fetchJSON(url, options = {}) {
 }
 
 export async function fetchRaw(url, options = {}) {
-  return fetch(url, options);
+  const response = await fetch(url, options);
+
+  if (response.status === 401) {
+    handleUnauthorized();
+  }
+
+  return response;
 }

@@ -138,6 +138,22 @@
   font-size: 13px;
 }
 
+.login-error {
+  color: var(--color-danger);
+  font-size: 12px;
+  text-align: center;
+  padding: 8px;
+  background: var(--color-danger-soft);
+  border-radius: var(--radius-md);
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
 .login-remember {
   display: flex;
   align-items: center;

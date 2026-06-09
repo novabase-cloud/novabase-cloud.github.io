@@ -104,6 +104,15 @@ function buildScreen() {
   return { screen, passwordInput };
 }
 
+function getErrorEl(form) {
+  let err = form.querySelector('.login-error');
+  if (!err) {
+    err = el('div', { class: 'login-error', role: 'alert' });
+    form.insertBefore(err, form.querySelector('.login-options'));
+  }
+  return err;
+}
+
 async function handleSubmit(passwordInput, rememberInput, submitBtn) {
   const password = passwordInput.value;
   if (!password) {
@@ -111,6 +120,9 @@ async function handleSubmit(passwordInput, rememberInput, submitBtn) {
   }
 
   setLoading(submitBtn, true);
+  const errEl = getErrorEl(submitBtn.closest('form'));
+  errEl.textContent = '';
+  errEl.style.display = 'none';
 
   try {
     const ok = await login(password, { remember: rememberInput.checked });
@@ -120,10 +132,14 @@ async function handleSubmit(passwordInput, rememberInput, submitBtn) {
         onSuccessCallback();
       }
     } else {
+      errEl.textContent = 'Invalid access key. Please try again.';
+      errEl.style.display = '';
       passwordInput.value = '';
       passwordInput.focus();
     }
   } catch (err) {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.style.display = '';
     console.error('[login.js] submit error', err);
   } finally {
     setLoading(submitBtn, false);
