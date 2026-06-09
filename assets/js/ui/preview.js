@@ -1,5 +1,5 @@
 import { el, icon, clear, mount } from '../utils/dom.js';
-import { fetchFileText, fetchFileBlob, buildThumbnailUrlFromPath } from '../api.js';
+import { fetchFileText, fetchFileBlob, buildThumbnailUrlFromPath, buildVideoThumbnailUrl } from '../api.js';
 import { getPassword } from '../auth.js';
 import { store } from '../store.js';
 import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT, THUMBNAIL_DEFAULTS } from '../config.js';
@@ -300,9 +300,18 @@ function buildCarousel(container) {
     const isAudio = FILE_TYPES.AUDIO?.includes(key);
     const thumb = el('div', { class: 'carousel-thumb', 'data-index': i, onClick: () => goTo(i) });
     if (isVid) {
-      thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-video-placeholder' }, [
-        el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 24)])
-      ]));
+      const thumbUrl = buildVideoThumbnailUrl(item.download_url, {
+        width: THUMBNAIL_DEFAULTS.WIDTH,
+        height: THUMBNAIL_DEFAULTS.HEIGHT,
+        time: '0.5s',
+      });
+      const img = el('img', { loading: 'lazy', src: thumbUrl, class: 'carousel-thumb-img', alt: item.name });
+      img.onerror = () => {
+        img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-video-placeholder' }, [
+          el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 24)])
+        ]));
+      };
+      thumb.appendChild(img);
     } else if (isAudio) {
       thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-audio' }, [
         el('span', { class: 'carousel-thumb-audio-icon' }, [icon(ICONS.volume, 28)])
@@ -374,13 +383,7 @@ async function loadMedia(idx) {
 
   try {
     if (isVid) {
-      const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
-        width: THUMBNAIL_DEFAULTS.WIDTH * 2,
-        height: THUMBNAIL_DEFAULTS.HEIGHT * 2,
-        quality: THUMBNAIL_DEFAULTS.QUALITY,
-        format: THUMBNAIL_DEFAULTS.FORMAT,
-      });
-      mount(slot, buildVideoPlayer(item.full_path, item.download_url, thumbUrl));
+      mount(slot, buildVideoPlayer(item.full_path, item.download_url));
     } else if (isAudio) {
       const blob = await fetchAndCache(item.download_url, item.full_path);
       const url = URL.createObjectURL(blob);
@@ -396,12 +399,17 @@ async function loadMedia(idx) {
   }
 }
 
-function buildVideoPlayer(fullPath, downloadUrl, thumbUrl) {
+function buildVideoPlayer(fullPath, downloadUrl) {
+  const posterUrl = buildVideoThumbnailUrl(downloadUrl, {
+    width: THUMBNAIL_DEFAULTS.WIDTH,
+    time: '0.5s',
+  });
+
   const video = el('video', {
     class: 'video-player-element',
     preload: 'none',
     playsinline: true,
-    poster: thumbUrl
+    poster: posterUrl
   });
 
   video.dataset.fullPath = fullPath;
@@ -491,15 +499,9 @@ function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv
   (async () => {
     try {
       if (isVideo) {
-        const thumbUrl = buildThumbnailUrlFromPath(path, {
-          width: THUMBNAIL_DEFAULTS.WIDTH * 2,
-          height: THUMBNAIL_DEFAULTS.HEIGHT * 2,
-          quality: THUMBNAIL_DEFAULTS.QUALITY,
-          format: THUMBNAIL_DEFAULTS.FORMAT,
-        });
         const downloadUrl = buildDownloadHref(path);
         clear(body);
-        body.appendChild(buildVideoPlayer(path, downloadUrl, thumbUrl));
+        body.appendChild(buildVideoPlayer(path, downloadUrl));
         return;
       }
       if (isAudio) {

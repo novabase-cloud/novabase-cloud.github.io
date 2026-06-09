@@ -14,6 +14,17 @@ export function buildThumbnailUrl(imageUrl, options = {}) {
   return `${API_BASE_URL}/thumbnail?${params.toString()}`;
 }
 
+export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
+  const params = new URLSearchParams();
+  params.set('url', videoDownloadUrl);
+  if (options.time) params.set('time', options.time);
+  if (options.width) params.set('w', String(options.width));
+  if (options.height) params.set('h', String(options.height));
+  const defaultTime = '0.5s';
+  if (!options.time) params.set('time', defaultTime);
+  return `${API_BASE_URL}/video-thumbnail?${params.toString()}`;
+}
+
 export function buildThumbnailUrlFromPath(filePath, options = {}) {
   const currentRepo = options.repo ? { id: options.repo, type: options.repoType || 'dataset' } : getCurrentRepo();
   const key = store.getAuthKey() || getPassword();
