@@ -1,127 +1,192 @@
-const CACHE_PREFIX = 'novabase.media.';
-const MAX_CACHE_SIZE = 50 * 1024 * 1024;
+const DB_NAME = 'novabase-media-cache';
+const DB_VERSION = 1;
+const STORE_NAME = 'media';
+const META_STORE_NAME = 'meta';
+const MAX_CACHE_SIZE = 200 * 1024 * 1024;
+const SESSION_ID_KEY = 'novabase.cache.sessionId';
 
-function getCacheKey(path) {
-  return `${CACHE_PREFIX}${path}`;
+let dbPromise = null;
+let currentSessionId = null;
+
+function generateSessionId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function getCacheMetaKey(path) {
-  return `${CACHE_PREFIX}meta.${path}`;
+function getSessionId() {
+  if (currentSessionId) return currentSessionId;
+  let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+  if (!sessionId) {
+    sessionId = generateSessionId();
+    sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+  }
+  currentSessionId = sessionId;
+  return sessionId;
 }
 
-function estimateSize(blob) {
-  return blob.size || 0;
+function openDB() {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'path' });
+        store.createIndex('sessionId', 'sessionId', { unique: false });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(META_STORE_NAME)) {
+        db.createObjectStore(META_STORE_NAME, { keyPath: 'key' });
+      }
+    };
+  });
+
+  return dbPromise;
+}
+
+async function clearOldSessions() {
+  const sessionId = getSessionId();
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const index = store.index('sessionId');
+
+    const request = index.openCursor(IDBKeyRange.only(sessionId), 'prev');
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        if (cursor.value.sessionId !== sessionId) {
+          cursor.delete();
+        }
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
 }
 
 async function getTotalCacheSize() {
-  let total = 0;
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && key.startsWith(CACHE_PREFIX) && !key.startsWith(`${CACHE_PREFIX}meta.`)) {
-      const val = sessionStorage.getItem(key);
-      if (val) total += val.length;
-    }
-  }
-  return total;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      let total = 0;
+      for (const entry of request.result) {
+        if (entry.blob) total += entry.blob.size || 0;
+      }
+      resolve(total);
+    };
+    request.onerror = () => reject(request.error);
+  });
 }
 
 async function evictOldestIfNeeded(newItemSize) {
   const currentSize = await getTotalCacheSize();
   if (currentSize + newItemSize <= MAX_CACHE_SIZE) return;
 
-  const entries = [];
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && key.startsWith(CACHE_PREFIX) && !key.startsWith(`${CACHE_PREFIX}meta.`)) {
-      const metaKey = getCacheMetaKey(key.replace(CACHE_PREFIX, ''));
-      const meta = sessionStorage.getItem(metaKey);
-      if (meta) {
-        try {
-          const parsed = JSON.parse(meta);
-          entries.push({ key, timestamp: parsed.timestamp || 0 });
-        } catch {
-          entries.push({ key, timestamp: 0 });
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const index = store.index('timestamp');
+
+    const request = index.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        const currentSizeNow = currentSize - (cursor.value.blob?.size || 0);
+        if (currentSizeNow + newItemSize <= MAX_CACHE_SIZE) {
+          resolve();
+          return;
         }
+        cursor.delete();
+        cursor.continue();
+      } else {
+        resolve();
       }
-    }
-  }
-
-  entries.sort((a, b) => a.timestamp - b.timestamp);
-
-  for (const entry of entries) {
-    const currentSizeNow = await getTotalCacheSize();
-    if (currentSizeNow + newItemSize <= MAX_CACHE_SIZE) break;
-    sessionStorage.removeItem(entry.key);
-    sessionStorage.removeItem(getCacheMetaKey(entry.key.replace(CACHE_PREFIX, '')));
-  }
+    };
+    request.onerror = () => reject(request.error);
+  });
 }
 
 export const mediaCache = {
   async get(path) {
-    const key = getCacheKey(path);
-    const cached = sessionStorage.getItem(key);
-    if (!cached) return null;
-
-    try {
-      const binary = atob(cached);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return new Blob([bytes.buffer]);
-    } catch {
-      sessionStorage.removeItem(key);
-      sessionStorage.removeItem(getCacheMetaKey(path));
-      return null;
-    }
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(path);
+      request.onsuccess = () => {
+        if (request.result?.blob) {
+          resolve(request.result.blob);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
   },
 
   async set(path, blob) {
-    const key = getCacheKey(path);
-    const size = estimateSize(blob);
+    const size = blob.size || 0;
     await evictOldestIfNeeded(size);
 
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const base64 = btoa(
-            new Uint8Array(reader.result).reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
-          sessionStorage.setItem(key, base64);
-          sessionStorage.setItem(getCacheMetaKey(path), JSON.stringify({
-            timestamp: Date.now(),
-            size,
-            type: blob.type
-          }));
-          resolve(true);
-        } catch (err) {
-          console.warn('[mediaCache] Failed to cache:', err);
-          resolve(false);
-        }
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const sessionId = getSessionId();
+      const request = store.put({
+        path,
+        blob,
+        size,
+        timestamp: Date.now(),
+        sessionId,
+        type: blob.type
+      });
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => {
+        console.warn('[mediaCache] Failed to cache:', request.error);
+        resolve(false);
       };
-      reader.readAsArrayBuffer(blob);
     });
   },
 
   async has(path) {
-    return !!sessionStorage.getItem(getCacheKey(path));
+    const blob = await this.get(path);
+    return !!blob;
   },
 
   async delete(path) {
-    sessionStorage.removeItem(getCacheKey(path));
-    sessionStorage.removeItem(getCacheMetaKey(path));
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.delete(path);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
   },
 
   async clear() {
-    const keysToRemove = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && key.startsWith(CACHE_PREFIX)) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.clear();
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
   }
 };
 
@@ -133,6 +198,8 @@ export function createObjectURLFromCache(path) {
 }
 
 export async function fetchAndCache(url, path) {
+  await clearOldSessions();
+
   const cached = await mediaCache.get(path);
   if (cached) return cached;
 
@@ -143,3 +210,7 @@ export async function fetchAndCache(url, path) {
   await mediaCache.set(path, blob);
   return blob;
 }
+
+window.addEventListener('beforeunload', () => {
+  mediaCache.clear().catch(() => {});
+});
