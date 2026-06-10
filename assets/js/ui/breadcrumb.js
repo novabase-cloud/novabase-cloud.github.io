@@ -27,12 +27,13 @@ export function renderBreadcrumb(path) {
     ),
     ...parts.map((part, idx) => {
       const subPath = parts.slice(0, idx + 1).join('/');
+      const label = decodeURIComponent(part);
       const isLast = idx === parts.length - 1;
       return el(
         'span',
         { class: 'breadcrumb-item' + (isLast ? ' is-current' : '') },
         isLast
-          ? [el('span', {}, part)]
+          ? [el('span', {}, label)]
           : [
               el('a', {
                 href: `#/${subPath}`,
@@ -40,7 +41,7 @@ export function renderBreadcrumb(path) {
                   e.preventDefault();
                   navigateToPath(subPath);
                 }
-              }, part)
+              }, label)
             ]
       );
     })

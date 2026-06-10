@@ -79,7 +79,9 @@ function buildRepoLink(id, type, isActive, onRemove, onEdit) {
 }
 
 function buildSidebar() {
-  const goRoot = () => navigate({ path: '', search: '', extension: '', sort: '', page: 1 });
+  const goRoot = () => {
+    navigate({ path: '_storage', search: '', extension: '', sort: '', page: 1, repo: null, repo_type: null });
+  };
   const goSettings = () => navigate({ path: 'settings', search: '', extension: '', sort: '', page: 1 });
 
   const storageLink = navLink({

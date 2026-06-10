@@ -1,7 +1,7 @@
-import { $, el, mount } from './utils/dom.js';
+import { $, el, icon, mount } from './utils/dom.js';
 import { initTheme } from './theme.js';
 import { isAuthenticated, validatePassword, logout } from './auth.js';
-import { initRouter, onViewChange } from './router.js';
+import { initRouter, navigate, onViewChange } from './router.js';
 import { store } from './store.js';
 import { renderLogin, initLogin } from './ui/login.js';
 import { renderHeader, initHeader, syncHeaderTheme } from './ui/header.js';
@@ -12,7 +12,7 @@ import { renderTable } from './ui/table.js';
 import { renderGrid } from './ui/grid.js';
 import { renderPagination } from './ui/pagination.js';
 import { renderSettingsView } from './ui/settings.js';
-import { getSettings, updateSettings, subscribe as subscribeSettings } from './settings.js';
+import { getSettings, updateSettings, getCustomRepos, subscribe as subscribeSettings } from './settings.js';
 import { fetchRepos } from './api.js';
 import { setOnUnauthorized } from './utils/http.js';
 
@@ -66,7 +66,70 @@ function setActiveView(view) {
   if (settings) settings.style.display = view === 'settings' ? '' : 'none';
 }
 
+const FOLDER_ICON = '<path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"></path>';
+
+function renderStorageView() {
+  const repos = getCustomRepos();
+
+  if (!repos.length) {
+    return el('div', { class: 'empty-state' }, [
+      el('div', { class: 'empty-state-icon' }, ['📦']),
+      el('h3', {}, 'No Repositories Yet'),
+      el('p', {}, 'Add a repository from the sidebar to start browsing files.'),
+      el('button', {
+        class: 'btn btn-primary',
+        onClick: () => { document.querySelector('.sidebar-add-repo-btn')?.click(); }
+      }, 'Add Repository')
+    ]);
+  }
+
+  const cards = repos.map((repo) =>
+    el('div', {
+      class: 'file-card is-folder has-kebab',
+      tabindex: '0',
+      role: 'button',
+      onClick: (e) => {
+        e.preventDefault();
+        updateSettings({ lastRepo: repo.id, lastRepoType: repo.type });
+        navigate({ path: '', repo: repo.id, repo_type: repo.type });
+      },
+      onKeydown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          updateSettings({ lastRepo: repo.id, lastRepoType: repo.type });
+          navigate({ path: '', repo: repo.id, repo_type: repo.type });
+        }
+      }
+    }, [
+      el('div', { class: 'card-thumb card-thumb-folder' }, [
+        el('span', { class: 'card-folder-icon' }, [icon(FOLDER_ICON, 36)])
+      ]),
+      el('div', { class: 'card-content' }, [
+        el('div', { class: 'card-name' }, [
+          el('span', { class: 'card-name-text' }, repo.id)
+        ]),
+        el('div', { class: 'card-meta' }, [
+          el('span', { class: 'badge badge-type' }, repo.type || 'dataset')
+        ])
+      ])
+    ])
+  );
+
+  return el('div', { class: 'file-grid-wrap' }, [
+    el('div', { class: 'file-grid' }, cards),
+    el('div', { class: 'grid-footer' }, [
+      el('span', {}, `${repos.length} repositor${repos.length !== 1 ? 'ies' : 'y'}`)
+    ])
+  ]);
+}
+
 function renderTableArea(state) {
+  if (state.navView === 'storage') {
+    mount(slots.tableSlot, renderStorageView());
+    mount(slots.paginationSlot, null);
+    return;
+  }
+
   const viewMode = state.viewMode || 'table';
   const items = state.data?.results || [];
 
@@ -102,6 +165,15 @@ function renderTableArea(state) {
 }
 
 function renderBreadcrumbArea(state) {
+  if (state.navView === 'storage') {
+    mount(slots.breadcrumbSlot, el('div', { class: 'breadcrumb' }, [
+      el('span', { class: 'breadcrumb-item is-current' }, [
+        icon(FOLDER_ICON, 14),
+        el('span', {}, 'Storage')
+      ])
+    ]));
+    return;
+  }
   mount(slots.breadcrumbSlot, renderBreadcrumb(state.path));
 }
 
@@ -184,6 +256,7 @@ function showApp() {
 
   store.subscribe((state) => {
     if (currentView === 'dashboard') {
+      slots.toolbarSlot.style.display = state.navView === 'storage' ? 'none' : '';
       renderBreadcrumbArea(state);
       renderTableArea(state);
     }

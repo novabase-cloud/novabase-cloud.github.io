@@ -50,14 +50,16 @@ function buildHash({ path, search, extension, sort, page, repo, repo_type }) {
 
 export function navigate({ path, search, extension, sort, page, repo, repo_type }) {
   const s = getSettings();
+  const resolvedRepo = repo !== undefined ? repo : (store.state.repo?.id || s.lastRepo || null);
+  const resolvedType = repo_type !== undefined ? repo_type : (store.state.repo?.type || s.lastRepoType || 'dataset');
   const next = buildHash({
     path,
     search,
     extension,
     sort,
     page: page || 1,
-    repo: repo || store.state.repo?.id || s.lastRepo || null,
-    repo_type: repo_type || store.state.repo?.type || s.lastRepoType || 'dataset'
+    repo: resolvedRepo,
+    repo_type: resolvedType
   });
   if (next !== window.location.hash) {
     window.location.hash = next;
@@ -146,6 +148,15 @@ async function loadListing(parsed) {
 function handleRoute() {
   const parsed = parseHash();
   emit(parsed);
+
+  if (parsed.path === '_storage') {
+    currentToken++;
+    store.set({ loading: false, error: null, data: null, path: '', navView: 'storage' });
+    emitViewChange('dashboard');
+    return;
+  }
+
+  store.set({ navView: null });
 
   if (isSettingsRoute(parsed)) {
     currentToken++;
