@@ -15,10 +15,12 @@ const ICONS = {
   csv: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line>',
   doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>',
   text: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line>',
-  file: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline>',
+  file: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline>',
   play: '<polygon points="5 3 19 12 5 21 5 3"></polygon>',
   search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
-  close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>'
+  close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
+  kebab: '<circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>'
 };
 
 let observer = null;
@@ -163,33 +165,68 @@ function renderCard(item, isParent) {
     }
   };
 
-  const actionBtns = el('div', { class: 'card-actions' });
+  // ── Kebab menu + dropdown ──
+  let kebabOverlay = null;
   if (!isParent) {
+    const menuItems = [];
     if (isFolder) {
-      actionBtns.appendChild(el('a', {
-        href: `#/${item.full_path}`,
-        class: 'btn btn-secondary btn-sm',
-        onClick: (e) => { e.preventDefault(); e.stopPropagation(); handleClick(e); }
-      }, 'Open'));
+      menuItems.push(el('button', {
+        type: 'button',
+        class: 'card-kebab-item',
+        onClick: (e) => {
+          e.stopPropagation();
+          closeAllKebabMenus();
+          handleClick(e);
+        }
+      }, [icon(ICONS.folder, 14), ' Open']));
     } else {
       if (previewable) {
-        actionBtns.appendChild(el('button', {
+        menuItems.push(el('button', {
           type: 'button',
-          class: 'btn btn-secondary btn-sm',
-          onClick: (e) => { e.stopPropagation(); openPreview({ path: item.full_path, name: item.name }); }
-        }, 'Preview'));
+          class: 'card-kebab-item',
+          onClick: (e) => {
+            e.stopPropagation();
+            closeAllKebabMenus();
+            openPreview({ path: item.full_path, name: item.name });
+          }
+        }, [icon(ICONS.play, 14), ' Preview']));
       }
       if (item.download_url) {
         const label = FILE_TYPES.VIDEO.includes(key) ? 'Stream' : FILE_TYPES.AUDIO?.includes(key) ? 'Play' : 'Download';
-        actionBtns.appendChild(el('a', {
+        menuItems.push(el('a', {
           href: item.download_url,
-          class: 'btn btn-primary btn-sm',
+          class: 'card-kebab-item',
           target: '_blank',
           rel: 'noopener noreferrer',
-          download: isFolder ? undefined : item.name,
-          onClick: (e) => e.stopPropagation()
-        }, label));
+          download: item.name,
+          onClick: (e) => {
+            e.stopPropagation();
+            closeAllKebabMenus();
+          }
+        }, [icon(ICONS.download, 14), ' ' + label]));
       }
+    }
+
+    if (menuItems.length > 0) {
+      const kebabBtn = el('button', {
+        type: 'button',
+        class: 'card-kebab-btn',
+        'aria-label': 'More actions',
+        onClick: (e) => {
+          e.stopPropagation();
+          const menu = kebabBtn.nextElementSibling;
+          const isOpen = menu.classList.contains('is-open');
+          closeAllKebabMenus();
+          if (!isOpen) {
+            menu.classList.add('is-open');
+            kebabBtn.classList.add('is-active');
+          }
+        }
+      }, [icon(ICONS.kebab, 16)]);
+
+      const kebabMenu = el('div', { class: 'card-kebab-menu' }, menuItems);
+
+      kebabOverlay = el('div', { class: 'card-overlay' }, [kebabBtn, kebabMenu]);
     }
   }
 
@@ -202,8 +239,15 @@ function renderCard(item, isParent) {
     isFolder ? null : el('span', { class: 'card-size' }, formatBytes(item.size))
   ].filter(Boolean));
 
+
+  let children = [
+    thumb,
+    kebabOverlay,
+    el('div', { class: 'card-content' }, [nameEl, metaEl])
+  ];
+
   return el('div', {
-    class: `file-card${isFolder && !isParent ? ' is-folder' : ''}${isParent ? ' is-parent' : ''}`,
+    class: `file-card${isFolder && !isParent ? ' is-folder' : ''}${isParent ? ' is-parent' : ''} has-kebab`,
     tabindex: '0',
     role: 'button',
     onClick: handleClick,
@@ -213,8 +257,26 @@ function renderCard(item, isParent) {
         handleClick(e);
       }
     }
-  }, [thumb, nameEl, metaEl, actionBtns]);
+  }, children);
 }
+
+function closeAllKebabMenus() {
+  document.querySelectorAll('.card-kebab-menu.is-open, .card-kebab-btn.is-active').forEach((el) => {
+    el.classList.remove('is-open', 'is-active');
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.card-overlay')) {
+    closeAllKebabMenus();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeAllKebabMenus();
+  }
+});
 
 function applyHiddenFilter(items) {
   const show = getSettings().showHidden;

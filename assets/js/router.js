@@ -119,13 +119,14 @@ async function loadListing(parsed) {
   });
 
   try {
+    const settings = getSettings();
     const data = await listFolder({
       path: parsed.path,
       search: parsed.search,
       extension: parsed.extension,
       sort: parsed.sort,
       page: parsed.page,
-      limit: 25,
+      limit: settings.itemsPerPage || 25,
       repo: parsed.repo,
       repo_type: parsed.repo_type
     });

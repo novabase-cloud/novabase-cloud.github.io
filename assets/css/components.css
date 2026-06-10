@@ -1435,7 +1435,6 @@
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
   display: flex;
@@ -1464,13 +1463,14 @@
 
 .card-thumb {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 219 / 219;
   background: var(--color-bg-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   position: relative;
+  border-radius: var(--radius-md);
 }
 
 .card-thumb-media {
@@ -1558,6 +1558,137 @@
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.file-card.has-kebab {
+  position: relative;
+}
+
+.card-overlay {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+}
+
+.card-kebab-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+
+.file-card:hover .card-kebab-btn,
+.file-card:focus-within .card-kebab-btn,
+.card-kebab-btn.is-active {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .card-kebab-btn {
+    opacity: 1;
+  }
+}
+
+.card-kebab-btn:hover,
+.card-kebab-btn.is-active {
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
+.card-kebab-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 140px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  display: none;
+  z-index: 20;
+  overflow: hidden;
+}
+
+.card-kebab-menu.is-open {
+  display: block;
+  animation: fadeIn 0.12s ease;
+}
+
+.card-kebab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.card-kebab-item:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+}
+
+.card-kebab-item svg {
+  flex-shrink: 0;
+}
+
+.card-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 60%, transparent 100%);
+  padding-top: 20px;
+  pointer-events: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.card-content .card-name {
+  padding: 6px 12px 2px;
+}
+
+.card-content .card-name-text {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+.card-content .card-meta {
+  padding: 0 12px 8px;
+}
+
+.card-content .card-meta .badge {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.2);
+  color: #fff;
+  backdrop-filter: blur(2px);
+}
+
+.card-content .card-meta .card-size {
+  color: rgba(255,255,255,0.65);
+}
+
+.file-card.has-kebab {
+  cursor: pointer;
 }
 
 @media (max-width: 600px) {
