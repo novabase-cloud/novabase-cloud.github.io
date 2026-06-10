@@ -53,9 +53,13 @@ export function isAuthenticated() {
 
 export async function validatePassword(candidate) {
   if (!candidate) return false;
-  const url = `${API_BASE_URL}/_/verify?key=${encodeURIComponent(candidate)}`;
+  const url = `${API_BASE_URL}/_/verify`;
   try {
-    const result = await fetchJSON(url);
+    const result = await fetchJSON(url, {
+      headers: {
+        'Authorization': `Bearer ${candidate}`
+      }
+    });
     return result.ok && result.data?.ok === true;
   } catch (_) {
     return false;
@@ -89,11 +93,10 @@ export function logout() {
 
 export function buildKeyedUrl(path, params = {}) {
   const key = getPassword();
-  if (!key) {
-    throw new Error('Not authenticated');
-  }
   const url = new URL(path || '/', API_BASE_URL);
-  url.searchParams.set('key', key);
+  if (key) {
+    url.searchParams.set('key', key);
+  }
   for (const [k, v] of Object.entries(params)) {
     if (v != null && v !== '') {
       url.searchParams.set(k, v);

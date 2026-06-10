@@ -30,9 +30,17 @@ let backdrop = null;
 let currentView = null;
 let mediaItems = [];
 let currentIndex = -1;
+let currentObjectUrl = null;
 
 function isMedia(key) {
   return FILE_TYPES.IMAGE.includes(key) || FILE_TYPES.VIDEO.includes(key);
+}
+
+function revokeCurrentUrl() {
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl);
+    currentObjectUrl = null;
+  }
 }
 
 function buildDownloadHref(path) {
@@ -50,6 +58,7 @@ function close() {
     video.removeAttribute('src');
     video.load();
   }
+  revokeCurrentUrl();
   if (backdrop && backdrop.parentNode) {
     backdrop.parentNode.removeChild(backdrop);
   }
@@ -384,6 +393,9 @@ async function loadMedia(idx) {
     prevVideo.removeAttribute('src');
     prevVideo.load();
   }
+  
+  revokeCurrentUrl();
+  
   const slot = backdrop?.querySelector('.media-slot');
   if (!slot || idx < 0 || idx >= mediaItems.length) return;
   const item = mediaItems[idx];
@@ -406,16 +418,56 @@ async function loadMedia(idx) {
   try {
     if (isVid) {
       mount(slot, buildVideoPlayer(item.full_path, item.download_url));
-    } else if (isAudio) {
-      const blob = await fetchAndCache(item.download_url, item.full_path);
-      const url = URL.createObjectURL(blob);
-      mount(slot, buildAudioPlayer(url, item.name));
-    } else if (isImg) {
-      const blob = await fetchAndCache(item.download_url, item.full_path);
-      const url = URL.createObjectURL(blob);
-      mount(slot, buildImageView(url, key));
+    } else {
+      // Size check for Audio/Image (Video uses streaming)
+      const MAX_MEDIA_SIZE = 50 * 1024 * 1024; // 50MB limit
+      if (item.size > MAX_MEDIA_SIZE) {
+        if (idx !== currentIndex || !backdrop) return;
+        clear(slot);
+        slot.appendChild(buildSizeWarning(item.size, async () => {
+          loadMediaForce(idx, slot, item, key, isAudio, isImg);
+        }));
+        return;
+      }
+      
+      if (isAudio) {
+        const blob = await fetchAndCache(item.download_url, item.full_path);
+        if (idx !== currentIndex || !backdrop) return;
+        currentObjectUrl = URL.createObjectURL(blob);
+        mount(slot, buildAudioPlayer(currentObjectUrl, item.name));
+      } else if (isImg) {
+        const blob = await fetchAndCache(item.download_url, item.full_path);
+        if (idx !== currentIndex || !backdrop) return;
+        currentObjectUrl = URL.createObjectURL(blob);
+        mount(slot, buildImageView(currentObjectUrl, key));
+      }
     }
   } catch (err) {
+    if (idx !== currentIndex || !backdrop) return;
+    clear(slot);
+    slot.appendChild(el('div', { class: 'empty-state' }, 'Failed to load media.'));
+  }
+}
+
+async function loadMediaForce(idx, slot, item, key, isAudio, isImg) {
+  clear(slot);
+  mount(slot, el('div', { class: 'modal-loading' }, [el('span', { class: 'spinner' })]));
+  try {
+    if (isAudio) {
+      const blob = await fetchAndCache(item.download_url, item.full_path);
+      if (idx !== currentIndex || !backdrop) return;
+      revokeCurrentUrl();
+      currentObjectUrl = URL.createObjectURL(blob);
+      mount(slot, buildAudioPlayer(currentObjectUrl, item.name));
+    } else if (isImg) {
+      const blob = await fetchAndCache(item.download_url, item.full_path);
+      if (idx !== currentIndex || !backdrop) return;
+      revokeCurrentUrl();
+      currentObjectUrl = URL.createObjectURL(blob);
+      mount(slot, buildImageView(currentObjectUrl, key));
+    }
+  } catch (err) {
+    if (idx !== currentIndex || !backdrop) return;
     clear(slot);
     slot.appendChild(el('div', { class: 'empty-state' }, 'Failed to load media.'));
   }
@@ -522,12 +574,14 @@ function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv
     try {
       if (isVideo) {
         const downloadUrl = buildDownloadHref(path);
+        if (!body.isConnected) return;
         clear(body);
         body.appendChild(buildVideoPlayer(path, downloadUrl));
         return;
       }
       if (isAudio) {
         const blob = await fetchAndCache(buildDownloadHref(path), path);
+        if (!body.isConnected) return;
         const url = URL.createObjectURL(blob);
         clear(body);
         body.appendChild(buildAudioPlayer(url, name));
@@ -535,6 +589,7 @@ function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv
       }
       if (isImage && key !== 'svg') {
         const blob = await fetchAndCache(buildDownloadHref(path), path);
+        if (!body.isConnected) return;
         const url = URL.createObjectURL(blob);
         clear(body);
         body.appendChild(buildImageView(url, key));
@@ -542,12 +597,14 @@ function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv
       }
       if (isJson) {
         const text = await fetchFileText(path);
+        if (!body.isConnected) return;
         clear(body);
         body.appendChild(buildJsonView(text));
         return;
       }
       if (isCsv) {
         const text = await fetchFileText(path);
+        if (!body.isConnected) return;
         clear(body);
         body.appendChild(buildCsvView(text));
         return;
@@ -667,6 +724,7 @@ function buildSizeWarning(size, onContinue) {
 
 async function renderTextWithSizeCheck(path, key, body) {
   const headResp = await fetch(buildDownloadHref(path), { method: 'HEAD' });
+  if (!body.isConnected) return;
   const lenStr = headResp.headers.get('content-length');
   const size = lenStr ? parseInt(lenStr, 10) : 0;
   if (size > TEXT_PREVIEW_MAX_BYTES) {
@@ -676,9 +734,11 @@ async function renderTextWithSizeCheck(path, key, body) {
       mount(body, buildLoading());
       try {
         const text = await fetchFileText(path);
+        if (!body.isConnected) return;
         clear(body);
         body.appendChild(buildCodeView(text, key));
       } catch (err) {
+        if (!body.isConnected) return;
         clear(body);
         body.appendChild(el('div', { class: 'empty-state' }, err.message || 'Failed to load preview.'));
       }
@@ -686,6 +746,7 @@ async function renderTextWithSizeCheck(path, key, body) {
     return;
   }
   const text = await fetchFileText(path);
+  if (!body.isConnected) return;
   clear(body);
   body.appendChild(buildCodeView(text, key));
 }

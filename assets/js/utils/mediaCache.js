@@ -210,7 +210,3 @@ export async function fetchAndCache(url, path) {
   await mediaCache.set(path, blob);
   return blob;
 }
-
-window.addEventListener('beforeunload', () => {
-  mediaCache.clear().catch(() => {});
-});

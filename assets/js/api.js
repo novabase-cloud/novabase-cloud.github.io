@@ -26,12 +26,12 @@ export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
 }
 
 export function buildThumbnailUrlFromPath(filePath, options = {}) {
-  const currentRepo = options.repo ? { id: options.repo, type: options.repoType || 'dataset' } : getCurrentRepo();
+  const currentRepo = options.repo ? { id: options.repo ? options.repo : null, type: options.repoType || 'dataset' } : getCurrentRepo();
   const key = store.getAuthKey() || getPassword();
   if (!key) {
     throw new Error('Not authenticated');
   }
-  const fileUrl = `${API_BASE_URL}/${filePath}?key=${key}&repo=${encodeURIComponent(currentRepo.id)}&type=${currentRepo.type}`;
+  const fileUrl = `${API_BASE_URL}/${filePath.startsWith('/') ? filePath.substring(1) : filePath}?key=${encodeURIComponent(key)}&repo=${encodeURIComponent(currentRepo.id)}&type=${currentRepo.type}`;
   return buildThumbnailUrl(fileUrl, options);
 }
 
@@ -47,7 +47,10 @@ export async function listFolder({ path, search, extension, sort, page, limit, r
     type: currentRepo.type
   };
   const url = buildKeyedUrl(path ? `/${path}` : '/', params);
-  const result = await fetchJSON(url);
+  const key = getPassword();
+  const result = await fetchJSON(url, {
+    headers: { 'Authorization': `Bearer ${key}` }
+  });
   if (!result.ok) {
     const err = new Error(result.data?.error || 'API error');
     err.status = result.status;
@@ -71,7 +74,12 @@ export async function fetchFileText(path, repo, repoType) {
     type: currentRepo.type
   };
   const url = buildKeyedUrl(`/${path}`, params);
-  return await fetchRaw(url);
+  const key = getPassword();
+  const res = await fetchRaw(url, {
+    headers: { 'Authorization': `Bearer ${key}` }
+  });
+  if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
+  return await res.text();
 }
 
 export async function fetchFileBlob(path, repo, repoType) {
@@ -81,15 +89,21 @@ export async function fetchFileBlob(path, repo, repoType) {
     type: currentRepo.type
   };
   const url = buildKeyedUrl(`/${path}`, params);
-  const res = await fetch(url);
+  const key = getPassword();
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${key}` }
+  });
   if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
   return await res.blob();
 }
 
 export async function fetchRepos() {
   const url = buildKeyedUrl('/_/repos');
+  const key = getPassword();
   try {
-    const result = await fetchJSON(url);
+    const result = await fetchJSON(url, {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
     return (result?.data?.repos) || [];
   } catch (_) {
     return [];
