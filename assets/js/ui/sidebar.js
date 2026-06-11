@@ -32,53 +32,53 @@ function navLink({ label, iconPath, isActive, onClick }) {
   }, [icon(iconPath, 18), el('span', {}, label)]);
 }
 
-function buildRepoLink(id, type, isActive, onRemove, onEdit) {
-  const editBtn = onEdit ? el('button', {
-    type: 'button',
-    class: 'sidebar-repo-edit',
-    'aria-label': `Edit ${id}`,
-    title: 'Edit repo name',
-    onClick: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onEdit(id, type);
-    }
-  }, [icon(ICONS.edit, 12)]) : null;
-
-  const removeBtn = onRemove ? el('button', {
-    type: 'button',
-    class: 'sidebar-repo-remove',
-    'aria-label': `Remove ${id}`,
-    title: 'Remove from list',
-    onClick: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onRemove(id);
-    }
-  }, [icon(ICONS.x, 12)]) : null;
-
-  const actionsEl = (editBtn || removeBtn) ? el('span', { class: 'sidebar-repo-btn-group' }, [editBtn, removeBtn].filter(Boolean)) : null;
-
-  const link = el('a', {
-    href: '#',
-    class: `sidebar-link${isActive ? ' is-active' : ''}`,
-    'data-repo': id,
-    onClick: (e) => {
-      e.preventDefault();
-      updateSettings({ lastRepo: id, lastRepoType: type || 'dataset' });
-      navigate({ path: '', search: '', extension: '', sort: '', page: 1, repo: id, repo_type: type || 'dataset' });
-      closeForm();
-    }
-  }, [
-    icon(ICONS.folder, 18),
-    el('span', { class: 'sidebar-repo-label' }, [id]),
-    actionsEl
-  ].filter(Boolean));
-
-  return link;
-}
-
 function buildSidebar() {
+  function buildRepoLink(id, type, isActive, onRemove, onEdit) {
+    const editBtn = onEdit ? el('button', {
+      type: 'button',
+      class: 'sidebar-repo-edit',
+      'aria-label': `Edit ${id}`,
+      title: 'Edit repo name',
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onEdit(id, type);
+      }
+    }, [icon(ICONS.edit, 12)]) : null;
+
+    const removeBtn = onRemove ? el('button', {
+      type: 'button',
+      class: 'sidebar-repo-remove',
+      'aria-label': `Remove ${id}`,
+      title: 'Remove from list',
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onRemove(id);
+      }
+    }, [icon(ICONS.x, 12)]) : null;
+
+    const actionsEl = (editBtn || removeBtn) ? el('span', { class: 'sidebar-repo-btn-group' }, [editBtn, removeBtn].filter(Boolean)) : null;
+
+    const link = el('a', {
+      href: '#',
+      class: `sidebar-link${isActive ? ' is-active' : ''}`,
+      'data-repo': id,
+      onClick: (e) => {
+        e.preventDefault();
+        updateSettings({ lastRepo: id, lastRepoType: type || 'dataset' });
+        navigate({ path: '', search: '', extension: '', sort: '', page: 1, repo: id, repo_type: type || 'dataset' });
+        closeForm();
+      }
+    }, [
+      icon(ICONS.folder, 18),
+      el('span', { class: 'sidebar-repo-label' }, [id]),
+      actionsEl
+    ].filter(Boolean));
+
+    return link;
+  }
+
   const goRoot = () => {
     navigate({ path: '_storage', search: '', extension: '', sort: '', page: 1, repo: null, repo_type: null });
   };
