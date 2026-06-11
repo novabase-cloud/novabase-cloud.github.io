@@ -1,6 +1,8 @@
 import { STORAGE_KEYS, API_BASE_URL } from './config.js';
 import { fetchJSON } from './utils/http.js';
-import { handleCallback } from './utils/oauth.js';
+import { handleCallback, revokeToken } from './utils/oauth.js';
+
+const FORCE_CONSENT_KEY = 'huggingface_oauth_force_consent';
 
 const TOKEN_KEY = STORAGE_KEYS.HF_TOKEN;
 const USER_KEY = STORAGE_KEYS.USER_INFO;
@@ -68,9 +70,10 @@ export async function loginWithCode(code) {
 }
 
 export function logout() {
+  const token = cachedToken;
   cachedToken = null;
 
-  // Clear HF token + user info
+  // Clear HF token + user info immediately
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 
@@ -83,6 +86,12 @@ export function logout() {
   for (const key of SESSION_KEYS) {
     localStorage.removeItem(key);
   }
+
+  // Flag so next Login triggers HF consent screen
+  localStorage.setItem(FORCE_CONSENT_KEY, '1');
+
+  // Revoke token with HF (best-effort, don't block)
+  revokeToken(token);
 }
 
 export function buildKeyedUrl(path, params = {}) {

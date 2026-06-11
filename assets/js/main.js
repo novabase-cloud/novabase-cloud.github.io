@@ -344,7 +344,13 @@ async function handleOAuthCallback() {
 async function verifyAuthOnStartup() {
   // 1. Check if we are returning from OAuth login
   const oauthSuccess = await handleOAuthCallback();
-  if (oauthSuccess) return true;
+  if (oauthSuccess) {
+    // Navigate away from #/login to storage dashboard
+    if (window.location.hash.startsWith('#/login')) {
+      window.location.replace('#/_storage');
+    }
+    return true;
+  }
 
   // 2. Check existing session
   if (!isAuthenticated()) return false;

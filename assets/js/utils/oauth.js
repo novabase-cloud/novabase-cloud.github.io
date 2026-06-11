@@ -2,12 +2,15 @@
  * OAuth 2.0 PKCE Utilities for Hugging Face
  */
 
+const FORCE_CONSENT_KEY = 'huggingface_oauth_force_consent';
+
 export const OAUTH_CONFIG = {
   CLIENT_ID: '6b7e058a-f8f5-4b92-810a-9497864baa26',
   REDIRECT_URI: 'https://novabase-cloud.github.io/#/login',
   SCOPE: 'read-repos openid profile',
   AUTH_URL: 'https://huggingface.co/oauth/authorize',
   TOKEN_URL: 'https://huggingface.co/oauth/token',
+  REVOKE_URL: 'https://huggingface.co/oauth/revoke',
 };
 
 /**
@@ -61,7 +64,29 @@ export async function initiateLogin() {
     state,
   });
 
+  // Force HF to ask for consent if user explicitly logged out
+  if (localStorage.getItem(FORCE_CONSENT_KEY)) {
+    params.set('prompt', 'consent');
+    localStorage.removeItem(FORCE_CONSENT_KEY);
+  }
+
   window.location.href = `${OAUTH_CONFIG.AUTH_URL}?${params.toString()}`;
+}
+
+/**
+ * Revokes the current HF token so next login requires re-authorization
+ */
+export async function revokeToken(token) {
+  if (!token) return;
+  try {
+    await fetch(OAUTH_CONFIG.REVOKE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, client_id: OAUTH_CONFIG.CLIENT_ID }),
+    });
+  } catch (_) {
+    // Revocation is best-effort (network may fail)
+  }
 }
 
 /**
