@@ -99,7 +99,7 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-folder-icon' }, [icon(ICONS.folder, 36)])
     ]);
   } else if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') {
-    const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
+    const thumbUrl = buildThumbnailUrlFromPath(item.path || item.full_path, {
       width: THUMBNAIL_DEFAULTS.WIDTH,
       height: THUMBNAIL_DEFAULTS.HEIGHT,
       quality: THUMBNAIL_DEFAULTS.QUALITY,
@@ -157,11 +157,11 @@ function renderCard(item, isParent) {
   const handleClick = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (isParent) {
-      navigate({ path: item.full_path, search: '', extension: '', sort: '', page: 1 });
+      navigate({ path: item.path || item.full_path, search: '', extension: '', sort: '', page: 1 });
     } else if (isFolder) {
-      navigate({ path: item.full_path, search: '', extension: '', sort: '', page: 1 });
+      navigate({ path: item.path || item.full_path, search: '', extension: '', sort: '', page: 1 });
     } else if (previewable) {
-      openPreview({ path: item.full_path, name: item.name });
+      openPreview({ path: item.path || item.full_path, name: item.name });
     }
   };
 
@@ -187,7 +187,7 @@ function renderCard(item, isParent) {
           onClick: (e) => {
             e.stopPropagation();
             closeAllKebabMenus();
-            openPreview({ path: item.full_path, name: item.name });
+            openPreview({ path: item.path || item.full_path, name: item.name });
           }
         }, [icon(ICONS.play, 14), ' Preview']));
       }

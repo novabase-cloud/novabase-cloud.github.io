@@ -72,12 +72,12 @@ function renderRow(item) {
     ? el(
         'a',
         {
-          href: `#/${item.full_path}`,
+          href: `#/${item.path || item.full_path}`,
           class: 'name-link',
           onClick: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            navigateToFolder(item.full_path);
+            navigateToFolder(item.path || item.full_path);
           }
         },
         [iconForItem(item), el('span', {}, item.name)]
@@ -104,12 +104,12 @@ function renderRow(item) {
       el(
         'a',
         {
-          href: `#/${item.full_path}`,
+          href: `#/${item.path || item.full_path}`,
           class: 'btn btn-secondary',
           onClick: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            navigateToFolder(item.full_path);
+            navigateToFolder(item.path || item.full_path);
           }
         },
         'Open'
@@ -123,7 +123,7 @@ function renderRow(item) {
           class: 'btn btn-secondary',
           onClick: (e) => {
             e.stopPropagation();
-            openPreview({ path: item.full_path, name: item.name });
+            openPreview({ path: item.path || item.full_path, name: item.name });
           }
         },
         'Preview'
@@ -154,7 +154,7 @@ function renderRow(item) {
     {
       class: isFolder ? 'is-clickable' : '',
       onClick: () => {
-        if (isFolder) navigateToFolder(item.full_path);
+        if (isFolder) navigateToFolder(item.path || item.full_path);
       },
       role: isFolder ? 'link' : 'row',
       tabindex: isFolder ? '0' : '-1',

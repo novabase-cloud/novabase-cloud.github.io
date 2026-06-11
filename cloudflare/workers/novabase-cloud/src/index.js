@@ -68,7 +68,25 @@ async function handleListing(url, auth) {
   else if (sort === "-name") filtered.sort((a, b) => (b.name || "").localeCompare(a.name || ""));
 
   const start = (page - 1) * limit;
-  const results = filtered.slice(start, start + limit);
+  const results = filtered.slice(start, start + limit).map(i => {
+    const itemPath = i.path || "";
+    // Build a download URL that points back to this worker
+    const dlUrl = new URL(url.origin);
+    dlUrl.pathname = `/${itemPath}`;
+    dlUrl.searchParams.set("repo", repo);
+    dlUrl.searchParams.set("type", type);
+    
+    // If the request had a token, propagate it to the download URL
+    // extractToken returns "Bearer <token>", we just want the <token> part
+    const token = auth.startsWith("Bearer ") ? auth.substring(7) : auth;
+    if (token) dlUrl.searchParams.set("token", token);
+
+    return {
+      ...i,
+      full_path: itemPath,
+      download_url: dlUrl.toString()
+    };
+  });
   const totalCount = filtered.length;
   const totalPages = Math.ceil(totalCount / limit);
 
