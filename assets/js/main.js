@@ -424,22 +424,6 @@ async function verifyAuthOnStartup() {
   }
 }
 
-function bootstrap() {
-  initTheme();
-
-  setOnUnauthorized(() => {
-    showLoginScreen();
-  });
-
-  verifyAuthOnStartup().then((authed) => {
-    if (authed) {
-      showApp();
-    } else {
-      showLoginScreen();
-    }
-  });
-}
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', bootstrap);
 } else {
