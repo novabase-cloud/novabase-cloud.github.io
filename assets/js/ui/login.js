@@ -83,8 +83,14 @@ function setLoading(btn, isLoading) {
 
 export function renderLogin(container) {
   clear(container);
-  const { screen } = buildScreen();
+  const { screen, loginBtn } = buildScreen();
   mount(container, screen);
+  
+  // Check if we just returned from a successful OAuth flow
+  if (window.location.search.includes('code=') || window.location.hash.includes('code=')) {
+     setLoading(loginBtn, true);
+  }
+
   return { screen };
 }
 

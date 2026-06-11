@@ -62,6 +62,32 @@ export function renderHeader() {
     [icon(ICONS.menu, 18)]
   );
 
+  const userLabel = el('p', { class: 'app-header-user-label' }, 'Authenticated User');
+  const userName = el('p', { class: 'app-header-user-name' }, 'Loading...');
+  const avatarSlot = el('div', { class: 'app-avatar' }, 'U');
+
+  const updateUserInfo = (user) => {
+    if (!user) return;
+    userName.textContent = user.fullname || user.name || 'Hugging Face User';
+    userLabel.textContent = user.type || 'User';
+    
+    avatarSlot.innerHTML = '';
+    if (user.avatarUrl) {
+      avatarSlot.appendChild(el('img', { 
+        src: user.avatarUrl, 
+        alt: user.name,
+        style: { width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }
+      }));
+    } else {
+      avatarSlot.textContent = (user.name || 'U').charAt(0).toUpperCase();
+    }
+  };
+
+  updateUserInfo(store.state.user);
+  store.subscribe((state) => {
+    if (state.user) updateUserInfo(state.user);
+  });
+
   return el('header', { class: 'app-header' }, [
     el('div', { class: 'app-header-left' }, [
       menuBtn,
@@ -73,10 +99,10 @@ export function renderHeader() {
     ]),
     el('div', { class: 'app-header-right' }, [
       el('div', { class: 'app-header-user' }, [
-        el('p', { class: 'app-header-user-label' }, 'Authenticated Pro'),
-        el('p', { class: 'app-header-user-name' }, 'Developer Mode')
+        userLabel,
+        userName
       ]),
-      el('div', { class: 'app-header-actions' }, [themeBtn, logoutBtn, el('div', { class: 'app-avatar' }, 'N')])
+      el('div', { class: 'app-header-actions' }, [themeBtn, logoutBtn, avatarSlot])
     ])
   ]);
 }

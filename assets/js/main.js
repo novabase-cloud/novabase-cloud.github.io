@@ -345,36 +345,46 @@ async function handleOAuthCallback() {
     if (storedState && state !== storedState) {
       console.warn('[auth] State mismatch — possible CSRF attack');
       window.history.replaceState({}, document.title, window.location.origin + window.location.pathname + window.location.hash.split('?')[0]);
-      return false;
+      return null;
     }
 
     // Clear code from URL for security and aesthetics
     const cleanUrl = window.location.origin + window.location.pathname + window.location.hash.split('?')[0];
     window.history.replaceState({}, document.title, cleanUrl);
     
-    const success = await loginWithCode(code);
-    return success;
+    try {
+      const success = await loginWithCode(code);
+      return success ? true : null;
+    } catch (err) {
+      console.error('[auth] OAuth callback error', err);
+      return null;
+    }
   }
-  return false;
+  return null;
 }
 
 async function verifyAuthOnStartup() {
   // 1. Check if we are returning from OAuth login
-  const oauthSuccess = await handleOAuthCallback();
-  if (oauthSuccess) {
-    window.location.replace('#/_storage');
-    return true;
+  const oauthResult = await handleOAuthCallback();
+  if (oauthResult) {
+    const userData = await validateToken();
+    if (userData) {
+      store.set({ user: userData });
+      window.location.replace('#/_storage');
+      return true;
+    }
   }
 
   // 2. Check existing session
   if (!isAuthenticated()) return false;
   
   // 3. Validate existing token
-  const valid = await validateToken();
-  if (!valid) {
+  const userData = await validateToken();
+  if (!userData) {
     logout();
     return false;
   }
+  store.set({ user: userData });
   return true;
 }
 

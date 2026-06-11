@@ -33,7 +33,7 @@ function navLink({ label, iconPath, isActive, onClick }) {
 }
 
 function buildRepoLink(id, type, isActive, onRemove, onEdit) {
-  const editBtn = el('button', {
+  const editBtn = onEdit ? el('button', {
     type: 'button',
     class: 'sidebar-repo-edit',
     'aria-label': `Edit ${id}`,
@@ -41,11 +41,11 @@ function buildRepoLink(id, type, isActive, onRemove, onEdit) {
     onClick: (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (onEdit) onEdit(id, type);
+      onEdit(id, type);
     }
-  }, [icon(ICONS.edit, 12)]);
+  }, [icon(ICONS.edit, 12)]) : null;
 
-  const removeBtn = el('button', {
+  const removeBtn = onRemove ? el('button', {
     type: 'button',
     class: 'sidebar-repo-remove',
     'aria-label': `Remove ${id}`,
@@ -53,11 +53,11 @@ function buildRepoLink(id, type, isActive, onRemove, onEdit) {
     onClick: (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (onRemove) onRemove(id);
+      onRemove(id);
     }
-  }, [icon(ICONS.x, 12)]);
+  }, [icon(ICONS.x, 12)]) : null;
 
-  const actionsEl = el('span', { class: 'sidebar-repo-btn-group' }, [editBtn, removeBtn]);
+  const actionsEl = (editBtn || removeBtn) ? el('span', { class: 'sidebar-repo-btn-group' }, [editBtn, removeBtn].filter(Boolean)) : null;
 
   const link = el('a', {
     href: '#',
@@ -104,31 +104,42 @@ function buildSidebar() {
     const currentRepo = store.state.repo?.id || getSettings().lastRepo || null;
     const currentType = store.state.repo?.type || getSettings().lastRepoType || 'dataset';
     const customRepos = getCustomRepos();
+    const myRepos = store.state.repos || [];
 
-    const links = [];
+    const sections = [];
 
-    for (const r of customRepos) {
-      links.push(buildRepoLink(r.id, r.type, currentRepo === r.id, (id) => {
-        removeCustomRepo(id);
-        if (store.state.repo?.id === id) {
-          const nextRepo = customRepos.find(r => r.id !== id) || null;
-          if (nextRepo) {
-            updateSettings({ lastRepo: nextRepo.id, lastRepoType: nextRepo.type });
-            navigate({ path: '', search: '', extension: '', sort: '', page: 1, repo: nextRepo.id, repo_type: nextRepo.type });
-          } else {
-            updateSettings({ lastRepo: null, lastRepoType: 'dataset' });
-            navigate({ path: '', search: '', extension: '', sort: '', page: 1, repo: null, repo_type: 'dataset' });
+    if (myRepos.length > 0) {
+      sections.push(el('p', { class: 'sidebar-section-title', style: { marginTop: '12px' } }, 'My Repositories'));
+      myRepos.forEach(r => {
+        sections.push(buildRepoLink(r.id, r.type, currentRepo === r.id, null, null));
+      });
+    }
+
+    if (customRepos.length > 0) {
+      sections.push(el('p', { class: 'sidebar-section-title', style: { marginTop: '12px' } }, 'Added Repositories'));
+      customRepos.forEach(r => {
+        sections.push(buildRepoLink(r.id, r.type, currentRepo === r.id, (id) => {
+          removeCustomRepo(id);
+          if (store.state.repo?.id === id) {
+            const nextRepo = customRepos.find(r => r.id !== id) || myRepos[0] || null;
+            if (nextRepo) {
+              updateSettings({ lastRepo: nextRepo.id, lastRepoType: nextRepo.type });
+              navigate({ path: '', search: '', extension: '', sort: '', page: 1, repo: nextRepo.id, repo_type: nextRepo.type });
+            } else {
+              updateSettings({ lastRepo: null, lastRepoType: 'dataset' });
+              navigate({ path: '', search: '', extension: '', sort: '', page: 1, repo: null, repo_type: 'dataset' });
+            }
           }
-        }
-        rebuildRepoList();
-      }, (id, type) => {
-        openEditForm(id, type);
-      }));
+          rebuildRepoList();
+        }, (id, type) => {
+          openEditForm(id, type);
+        }));
+      });
     }
 
     clear(repoListEl);
-    for (const link of links) {
-      repoListEl.appendChild(link);
+    for (const node of sections) {
+      repoListEl.appendChild(node);
     }
   }
 

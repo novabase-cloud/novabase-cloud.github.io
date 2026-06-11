@@ -47,9 +47,15 @@ export async function listFolder({ path, search, extension, sort, page, limit, r
     type: currentRepo.type
   };
   const url = buildKeyedUrl(path ? `/${path}` : '/', params);
-  const key = getPassword();
+  const token = getPassword();
+  
+  if (!token) {
+    console.error('[api.js] Missing token for listFolder');
+    throw new Error('Unauthorized: No access token found. Please login.');
+  }
+
   const result = await fetchJSON(url, {
-    headers: { 'Authorization': `Bearer ${key}` }
+    headers: { 'Authorization': `Bearer ${token}` }
   });
   if (!result.ok) {
     const err = new Error(result.data?.error || 'API error');
@@ -74,9 +80,12 @@ export async function fetchFileText(path, repo, repoType) {
     type: currentRepo.type
   };
   const url = buildKeyedUrl(`/${path}`, params);
-  const key = getPassword();
+  const token = getPassword();
+  
+  if (!token) throw new Error('Unauthorized: No access token found');
+
   const res = await fetchRaw(url, {
-    headers: { 'Authorization': `Bearer ${key}` }
+    headers: { 'Authorization': `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
   return await res.text();
@@ -89,9 +98,12 @@ export async function fetchFileBlob(path, repo, repoType) {
     type: currentRepo.type
   };
   const url = buildKeyedUrl(`/${path}`, params);
-  const key = getPassword();
+  const token = getPassword();
+  
+  if (!token) throw new Error('Unauthorized: No access token found');
+
   const res = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${key}` }
+    headers: { 'Authorization': `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
   return await res.blob();
@@ -99,10 +111,13 @@ export async function fetchFileBlob(path, repo, repoType) {
 
 export async function fetchRepos() {
   const url = buildKeyedUrl('/_/repos');
-  const key = getPassword();
+  const token = getPassword();
+  
+  if (!token) return [];
+
   try {
     const result = await fetchJSON(url, {
-      headers: { 'Authorization': `Bearer ${key}` }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
     return (result?.data?.repos) || [];
   } catch (_) {

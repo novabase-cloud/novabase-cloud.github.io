@@ -44,10 +44,15 @@ function revokeCurrentUrl() {
 }
 
 function buildDownloadHref(path) {
-  const key = getPassword();
-  if (!key) return '#';
-  const url = new URL(path, API_BASE_URL);
-  url.searchParams.set('key', key);
+  const token = getPassword();
+  if (!token) return '#';
+  const repo = store.state.repo;
+  if (!repo || !repo.id) return '#';
+  
+  const url = new URL(`${API_BASE_URL}/${path.startsWith('/') ? path.substring(1) : path}`);
+  url.searchParams.set('token', token);
+  url.searchParams.set('repo', repo.id);
+  url.searchParams.set('type', repo.type || 'dataset');
   return url.toString();
 }
 

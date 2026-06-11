@@ -40,6 +40,15 @@ export function isAuthenticated() {
   return Boolean(getToken());
 }
 
+export function getUserInfo() {
+  try {
+    const info = localStorage.getItem(USER_KEY);
+    return info ? JSON.parse(info) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 export async function validateToken() {
   const token = getToken();
   if (!token) return false;
@@ -48,7 +57,11 @@ export async function validateToken() {
     const result = await fetchJSON(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    return result.ok && !!result.data?.name;
+    if (result.ok && result.data) {
+      localStorage.setItem(USER_KEY, JSON.stringify(result.data));
+      return result.data;
+    }
+    return false;
   } catch (_) {
     return false;
   }
