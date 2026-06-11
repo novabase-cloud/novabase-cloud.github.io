@@ -6,7 +6,7 @@ const FORCE_CONSENT_KEY = 'huggingface_oauth_force_consent';
 
 export const OAUTH_CONFIG = {
   CLIENT_ID: '6b7e058a-f8f5-4b92-810a-9497864baa26',
-  REDIRECT_URI: 'https://novabase-cloud.github.io/#/login',
+  REDIRECT_URI: 'https://novabase-cloud.github.io/',
   SCOPE: 'read-repos openid profile',
   AUTH_URL: 'https://huggingface.co/oauth/authorize',
   TOKEN_URL: 'https://huggingface.co/oauth/token',
