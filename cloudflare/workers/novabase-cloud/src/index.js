@@ -145,18 +145,33 @@ async function handleFileFetch(path, url, auth) {
   const type = url.searchParams.get("type") || "dataset";
   if (!repo) return json({ error: "Missing repo parameter" }, 400);
 
-  const apiPath = type === "model" ? "models" : "datasets";
-  const fileUrl = `${HF_API}/api/${apiPath}/${repo}/resolve/${DEFAULT_BRANCH}/${path}`;
+  // HF Resolve URLs do NOT use the /api/ prefix
+  // Datasets: https://huggingface.co/datasets/{repo}/resolve/{branch}/{path}
+  // Models: https://huggingface.co/{repo}/resolve/{branch}/{path}
+  const baseUrl = type === "dataset" ? `${HF_API}/datasets/${repo}` : `${HF_API}/${repo}`;
+  const fileUrl = `${baseUrl}/resolve/${DEFAULT_BRANCH}/${path}`;
 
   try {
     const res = await fetch(fileUrl, {
       headers: { "Authorization": auth, "User-Agent": "Novabase-Cloud-Router/2.0" },
       redirect: "follow",
     });
+    
+    // Create a new response to ensure we can modify headers (CORS)
     const headers = new Headers(res.headers);
     headers.set("Access-Control-Allow-Origin", "*");
     headers.delete("Set-Cookie");
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+
+    // If it's a 404 from HF, return a cleaner error
+    if (res.status === 404) {
+      return json({ error: "Not Found", message: `File not found in repository: ${path}` }, 404);
+    }
+
+    return new Response(res.body, { 
+      status: res.status, 
+      statusText: res.statusText, 
+      headers 
+    });
   } catch (err) {
     return json({ error: "Failed to fetch file", message: err.message }, 502);
   }
