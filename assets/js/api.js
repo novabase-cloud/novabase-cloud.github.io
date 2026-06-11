@@ -4,25 +4,25 @@ import { store } from './store.js';
 import { API_BASE_URL, THUMBNAIL_DEFAULTS } from './config.js';
 
 export function buildThumbnailUrl(imageUrl, options = {}) {
-  const params = new URLSearchParams();
-  params.set('url', imageUrl);
-  if (options.width) params.set('w', String(options.width));
-  if (options.height) params.set('h', String(options.height));
-  if (options.format) params.set('format', options.format);
-  if (options.quality) params.set('q', String(options.quality));
-  if (options.fit) params.set('fit', options.fit);
-  return `${API_BASE_URL}/thumbnail?${params.toString()}`;
+  const params = {
+    url: imageUrl,
+    ...(options.width && { w: String(options.width) }),
+    ...(options.height && { h: String(options.height) }),
+    ...(options.format && { format: options.format }),
+    ...(options.quality && { q: String(options.quality) }),
+    ...(options.fit && { fit: options.fit })
+  };
+  return buildKeyedUrl('/thumbnail', params);
 }
 
 export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
-  const params = new URLSearchParams();
-  params.set('url', videoDownloadUrl);
-  if (options.time) params.set('time', options.time);
-  if (options.width) params.set('w', String(options.width));
-  if (options.height) params.set('h', String(options.height));
-  const defaultTime = '0.5s';
-  if (!options.time) params.set('time', defaultTime);
-  return `${API_BASE_URL}/video-thumbnail?${params.toString()}`;
+  const params = {
+    url: videoDownloadUrl,
+    time: options.time || '0.5s',
+    ...(options.width && { w: String(options.width) }),
+    ...(options.height && { h: String(options.height) })
+  };
+  return buildKeyedUrl('/video-thumbnail', params);
 }
 
 export function buildThumbnailUrlFromPath(filePath, options = {}) {

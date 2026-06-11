@@ -6,9 +6,10 @@ export function setOnUnauthorized(callback) {
   onUnauthorized = callback;
 }
 
-function getStoredToken() {
+export function getStoredToken() {
   try {
-    return localStorage.getItem(STORAGE_KEYS.HF_TOKEN);
+    const token = localStorage.getItem(STORAGE_KEYS.HF_TOKEN);
+    return token ? token.trim() : null;
   } catch (_) {
     return null;
   }
@@ -23,7 +24,7 @@ function handleUnauthorized() {
 /**
  * Enhanced fetch wrapper with automatic token injection and error handling.
  */
-async function request(url, options = {}) {
+export async function request(url, options = {}) {
   const { timeout = 30000, ...fetchOptions } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -31,16 +32,29 @@ async function request(url, options = {}) {
   // Auto-inject Authorization header if not present and token exists
   const token = getStoredToken();
   const headers = new Headers(fetchOptions.headers || {});
+  
   if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token.trim()}`);
+    headers.set('Authorization', `Bearer ${token}`);
   }
   
+  // Ensure the URL also has a token query parameter as a fallback for some worker routes
+  let finalUrl = url;
+  try {
+    const urlObj = new URL(url, window.location.origin);
+    if (token && !urlObj.searchParams.has('token')) {
+      urlObj.searchParams.set('token', token);
+      finalUrl = urlObj.toString();
+    }
+  } catch (e) {
+    // If url is not a valid absolute URL, we just use it as is
+  }
+
   if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json');
+    headers.set('Accept', 'application/json, text/plain, */*');
   }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(finalUrl, {
       ...fetchOptions,
       headers,
       signal: controller.signal,

@@ -1,3 +1,5 @@
+import { fetchRaw } from './http.js';
+
 const DB_NAME = 'novabase-media-cache';
 const DB_VERSION = 1;
 const STORE_NAME = 'media';
@@ -203,7 +205,7 @@ export async function fetchAndCache(url, path) {
   const cached = await mediaCache.get(path);
   if (cached) return cached;
 
-  const response = await fetch(url);
+  const response = await fetchRaw(url);
   if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 
   const blob = await response.blob();

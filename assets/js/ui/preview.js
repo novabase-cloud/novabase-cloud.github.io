@@ -1,5 +1,6 @@
 import { el, icon, clear, mount } from '../utils/dom.js';
 import { fetchFileText, fetchFileBlob, buildThumbnailUrlFromPath, buildVideoThumbnailUrl } from '../api.js';
+import { fetchRaw } from '../utils/http.js';
 import { getPassword } from '../auth.js';
 import { store } from '../store.js';
 import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT, THUMBNAIL_DEFAULTS } from '../config.js';
@@ -728,7 +729,7 @@ function buildSizeWarning(size, onContinue) {
 }
 
 async function renderTextWithSizeCheck(path, key, body) {
-  const headResp = await fetch(buildDownloadHref(path), { method: 'HEAD' });
+  const headResp = await fetchRaw(buildDownloadHref(path), { method: 'HEAD' });
   if (!body.isConnected) return;
   const lenStr = headResp.headers.get('content-length');
   const size = lenStr ? parseInt(lenStr, 10) : 0;
