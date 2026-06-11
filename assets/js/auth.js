@@ -1,102 +1,91 @@
 import { STORAGE_KEYS, API_BASE_URL } from './config.js';
 import { fetchJSON } from './utils/http.js';
+import { handleCallback } from './utils/oauth.js';
 
-const PASSWORD_KEY = STORAGE_KEYS.PASSWORD;
-const REMEMBER_KEY = `${STORAGE_KEYS.PASSWORD}.remember`;
-const SESSION_FLAG = `${STORAGE_KEYS.PASSWORD}.session`;
+const TOKEN_KEY = STORAGE_KEYS.HF_TOKEN;
+const USER_KEY = STORAGE_KEYS.USER_INFO;
 
-let cachedPassword = null;
+let cachedToken = null;
 
-function clearAllStorage() {
-  cachedPassword = null;
+export function getToken() {
+  if (cachedToken) return cachedToken;
   try {
-    sessionStorage.removeItem(SESSION_FLAG);
-  } catch (_) {}
-  try {
-    localStorage.removeItem(PASSWORD_KEY);
-  } catch (_) {}
-  try {
-    localStorage.removeItem(REMEMBER_KEY);
-  } catch (_) {}
-}
-
-export function getPassword() {
-  if (cachedPassword) return cachedPassword;
-  try {
-    const session = sessionStorage.getItem(SESSION_FLAG);
-    if (session) {
-      cachedPassword = session;
-      return session;
-    }
-  } catch (_) {}
-  try {
-    const persistent = localStorage.getItem(PASSWORD_KEY);
-    if (persistent) {
-      cachedPassword = persistent;
-      return persistent;
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      cachedToken = token;
+      return token;
     }
   } catch (_) {}
   return null;
 }
 
-export function isRememberEnabled() {
-  try {
-    return localStorage.getItem(REMEMBER_KEY) === '1';
-  } catch (_) {
-    return false;
-  }
+export function getPassword() {
+  // Backward compatibility for components still calling getPassword()
+  return getToken();
 }
 
 export function isAuthenticated() {
-  return Boolean(getPassword());
+  return Boolean(getToken());
 }
 
-export async function validatePassword(candidate) {
-  if (!candidate) return false;
-  const url = `${API_BASE_URL}/_/verify`;
+/**
+ * Validates the current token with Hugging Face (via Worker)
+ */
+export async function validateToken() {
+  const token = getToken();
+  if (!token) return false;
+
+  // We use the /whoami endpoint of Hugging Face
+  const url = `${API_BASE_URL}/api/whoami-v2`;
   try {
     const result = await fetchJSON(url, {
       headers: {
-        'Authorization': `Bearer ${candidate}`
+        'Authorization': `Bearer ${token}`
       }
     });
-    return result.ok && result.data?.ok === true;
+    return result.ok && !!result.data?.name;
   } catch (_) {
     return false;
   }
 }
 
-export async function login(candidate, { remember = true } = {}) {
-  const valid = await validatePassword(candidate);
-  if (!valid) return false;
-
-  cachedPassword = candidate;
-
+/**
+ * Processes the OAuth code from the URL and performs login
+ */
+export async function loginWithCode(code) {
   try {
-    if (remember) {
-      localStorage.setItem(PASSWORD_KEY, candidate);
-      localStorage.setItem(REMEMBER_KEY, '1');
-      sessionStorage.removeItem(SESSION_FLAG);
-    } else {
-      sessionStorage.setItem(SESSION_FLAG, candidate);
-      localStorage.removeItem(PASSWORD_KEY);
-      localStorage.removeItem(REMEMBER_KEY);
+    const data = await handleCallback(code);
+    if (data.access_token) {
+      localStorage.setItem(TOKEN_KEY, data.access_token);
+      cachedToken = data.access_token;
+      
+      // Optionally fetch and store user info
+      // await fetchUserInfo();
+      
+      return true;
     }
-  } catch (_) {}
-
-  return true;
+    return false;
+  } catch (err) {
+    console.error('[auth.js] loginWithCode error', err);
+    return false;
+  }
 }
 
 export function logout() {
-  clearAllStorage();
+  cachedToken = null;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
 export function buildKeyedUrl(path, params = {}) {
-  const key = getPassword();
+  const token = getToken();
   const url = new URL(path || '/', API_BASE_URL);
-  if (key) {
-    url.searchParams.set('key', key);
-  }
+  
+  // Note: We prefer Authorization header, but some legacy logic might need query param
+  // if (token) {
+  //   url.searchParams.set('token', token);
+  // }
+  
   for (const [k, v] of Object.entries(params)) {
     if (v != null && v !== '') {
       url.searchParams.set(k, v);

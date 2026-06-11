@@ -1,6 +1,6 @@
 import { $, el, icon, mount } from './utils/dom.js';
 import { initTheme } from './theme.js';
-import { isAuthenticated, validatePassword, logout } from './auth.js';
+import { isAuthenticated, loginWithCode, validateToken, logout } from './auth.js';
 import { initRouter, navigate, onViewChange } from './router.js';
 import { store } from './store.js';
 import { renderLogin, initLogin } from './ui/login.js';
@@ -304,11 +304,41 @@ async function computeFooterHash() {
   }
 }
 
+async function handleOAuthCallback() {
+  // Check both search and hash for 'code' (common in hash-based routing)
+  const urlParams = new URLSearchParams(window.location.search);
+  let code = urlParams.get('code');
+  
+  if (!code && window.location.hash.includes('?')) {
+    const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    code = hashParams.get('code');
+  } else if (!code && window.location.hash.includes('code=')) {
+    // Some providers might not use ? after #
+    const hashParams = new URLSearchParams(window.location.hash.substring(window.location.hash.indexOf('code=')));
+    code = hashParams.get('code');
+  }
+
+  if (code) {
+    // Clear code from URL for security and aesthetics
+    const cleanUrl = window.location.origin + window.location.pathname + window.location.hash.split('?')[0];
+    window.history.replaceState({}, document.title, cleanUrl);
+    
+    const success = await loginWithCode(code);
+    return success;
+  }
+  return false;
+}
+
 async function verifyAuthOnStartup() {
+  // 1. Check if we are returning from OAuth login
+  const oauthSuccess = await handleOAuthCallback();
+  if (oauthSuccess) return true;
+
+  // 2. Check existing session
   if (!isAuthenticated()) return false;
-  const key = (await import('./auth.js')).getPassword();
-  if (!key) return false;
-  const valid = await validatePassword(key);
+  
+  // 3. Validate existing token
+  const valid = await validateToken();
   if (!valid) {
     logout();
     return false;

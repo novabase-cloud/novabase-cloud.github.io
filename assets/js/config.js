@@ -1,7 +1,8 @@
 export const API_BASE_URL = 'https://novabase-cloud.mailtestvartext.workers.dev';
 
 export const STORAGE_KEYS = {
-  PASSWORD: 'novabase.tiktok.password',
+  HF_TOKEN: 'novabase.hf.token',
+  USER_INFO: 'novabase.user.info',
   THEME: 'novabase.theme',
   PATH_HISTORY: 'novabase.path.history',
   SETTINGS: 'novabase.settings',
