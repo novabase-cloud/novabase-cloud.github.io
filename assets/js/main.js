@@ -1,7 +1,7 @@
 import { $, el, icon, mount } from './utils/dom.js';
 import { initTheme } from './theme.js';
 import { isAuthenticated, loginWithCode, validateToken, logout } from './auth.js';
-import { initRouter, navigate, onViewChange } from './router.js';
+import { initRouter, navigate, onViewChange, setRouterReady } from './router.js';
 import { store } from './store.js';
 import { renderLogin, initLogin } from './ui/login.js';
 import { renderHeader, initHeader, syncHeaderTheme } from './ui/header.js';
