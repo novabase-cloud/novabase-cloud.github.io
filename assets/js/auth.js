@@ -5,6 +5,17 @@ import { handleCallback } from './utils/oauth.js';
 const TOKEN_KEY = STORAGE_KEYS.HF_TOKEN;
 const USER_KEY = STORAGE_KEYS.USER_INFO;
 
+const OAUTH_KEYS = [
+  'huggingface_oauth_verifier',
+  'huggingface_oauth_state',
+];
+
+const SESSION_KEYS = [
+  STORAGE_KEYS.PATH_HISTORY,
+  STORAGE_KEYS.SIDEBAR_OPEN,
+  STORAGE_KEYS.PREV_REPO,
+];
+
 let cachedToken = null;
 
 export function getToken() {
@@ -58,8 +69,20 @@ export async function loginWithCode(code) {
 
 export function logout() {
   cachedToken = null;
+
+  // Clear HF token + user info
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+
+  // Clear OAuth PKCE temp data (in case of interrupted flow)
+  for (const key of OAUTH_KEYS) {
+    localStorage.removeItem(key);
+  }
+
+  // Clear session data: history, sidebar, last repo
+  for (const key of SESSION_KEYS) {
+    localStorage.removeItem(key);
+  }
 }
 
 export function buildKeyedUrl(path, params = {}) {
