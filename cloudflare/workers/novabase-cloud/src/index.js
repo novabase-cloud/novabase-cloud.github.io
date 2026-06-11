@@ -201,8 +201,25 @@ export default {
     }
 
     if (url.pathname === "/thumbnail" || url.pathname === "/video-thumbnail") {
-      const target = url.searchParams.get("url");
+      let target = url.searchParams.get("url");
       if (!target) return json({ error: "Missing url parameter" }, 400);
+
+      // Fix: Resolve self-referencing URLs to avoid Worker-to-Worker loop (Error 1042)
+      try {
+        const targetObj = new URL(target);
+        if (targetObj.hostname === url.hostname) {
+          const repo = targetObj.searchParams.get("repo");
+          const type = targetObj.searchParams.get("type") || "dataset";
+          const path = targetObj.pathname.replace(/^\//, "");
+          if (repo) {
+            const baseUrl = type === "dataset" ? `${HF_API}/datasets/${repo}` : `${HF_API}/${repo}`;
+            target = `${baseUrl}/resolve/${DEFAULT_BRANCH}/${path}`;
+          }
+        }
+      } catch (e) {
+        // Not a valid URL or other parsing error, continue with original target
+      }
+
       try {
         const res = await fetch(target, {
           headers: { "Authorization": auth, "User-Agent": "Novabase-Cloud-Router/2.0" },

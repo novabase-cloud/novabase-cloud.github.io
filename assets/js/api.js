@@ -3,7 +3,17 @@ import { fetchJSON, fetchRaw } from './utils/http.js';
 import { store } from './store.js';
 import { API_BASE_URL, THUMBNAIL_DEFAULTS } from './config.js';
 
+function buildHuggingFaceUrl(path, repo, type) {
+  const repoType = type === 'model' ? '' : 'datasets/';
+  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+  return `https://huggingface.co/${repoType}${repo}/resolve/main/${cleanPath}`;
+}
+
 export function buildThumbnailUrl(imageUrl, options = {}) {
+  // If imageUrl is already a Worker URL, we should try to keep it as is, 
+  // but the Worker will have issues fetching itself.
+  // The best way is to ensure the Worker handles 'target' pointing to itself or 
+  // we pass the direct HF URL.
   const params = {
     url: imageUrl,
     ...(options.width && { w: String(options.width) }),
@@ -27,14 +37,8 @@ export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
 
 export function buildThumbnailUrlFromPath(filePath, options = {}) {
   const currentRepo = options.repo ? { id: options.repo, type: options.repoType || 'dataset' } : getCurrentRepo();
-  const token = getPassword();
-  
-  if (!token) {
-    throw new Error('Unauthorized: No access token found');
-  }
-
-  const fileUrl = `${API_BASE_URL}/${filePath.startsWith('/') ? filePath.substring(1) : filePath}?token=${encodeURIComponent(token)}&repo=${encodeURIComponent(currentRepo.id)}&type=${currentRepo.type}`;
-  return buildThumbnailUrl(fileUrl, options);
+  const hfUrl = buildHuggingFaceUrl(filePath, currentRepo.id, currentRepo.type);
+  return buildThumbnailUrl(hfUrl, options);
 }
 
 export async function listFolder({ path, search, extension, sort, page, limit, repo, repo_type }) {
