@@ -4,7 +4,6 @@ const listeners = new Set();
 
 export const store = {
   state: {
-    password: null,
     theme: 'light',
     path: DEFAULTS.PATH,
     search: DEFAULTS.SEARCH,
@@ -53,7 +52,4 @@ export const store = {
     });
   },
 
-  getAuthKey() {
-    return this.state.password;
-  }
 };

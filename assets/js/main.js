@@ -308,17 +308,29 @@ async function handleOAuthCallback() {
   // Check both search and hash for 'code' (common in hash-based routing)
   const urlParams = new URLSearchParams(window.location.search);
   let code = urlParams.get('code');
+  let state = urlParams.get('state');
   
   if (!code && window.location.hash.includes('?')) {
     const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
     code = hashParams.get('code');
+    state = state || hashParams.get('state');
   } else if (!code && window.location.hash.includes('code=')) {
     // Some providers might not use ? after #
     const hashParams = new URLSearchParams(window.location.hash.substring(window.location.hash.indexOf('code=')));
     code = hashParams.get('code');
+    state = state || hashParams.get('state');
   }
 
   if (code) {
+    // Validate state to prevent CSRF
+    const storedState = localStorage.getItem('huggingface_oauth_state');
+    localStorage.removeItem('huggingface_oauth_state');
+    if (storedState && state !== storedState) {
+      console.warn('[auth] State mismatch — possible CSRF attack');
+      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname + window.location.hash.split('?')[0]);
+      return false;
+    }
+
     // Clear code from URL for security and aesthetics
     const cleanUrl = window.location.origin + window.location.pathname + window.location.hash.split('?')[0];
     window.history.replaceState({}, document.title, cleanUrl);

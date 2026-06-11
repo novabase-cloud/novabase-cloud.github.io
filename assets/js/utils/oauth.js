@@ -46,8 +46,10 @@ export async function initiateLogin() {
   const hashed = await sha256(codeVerifier);
   const codeChallenge = base64urlencode(hashed);
 
-  // Store code_verifier for later use in the callback
+  // Store code_verifier and state for later use in the callback
+  const state = generateRandomString(16);
   localStorage.setItem('huggingface_oauth_verifier', codeVerifier);
+  localStorage.setItem('huggingface_oauth_state', state);
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -56,7 +58,7 @@ export async function initiateLogin() {
     scope: OAUTH_CONFIG.SCOPE,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    state: generateRandomString(16),
+    state,
   });
 
   window.location.href = `${OAUTH_CONFIG.AUTH_URL}?${params.toString()}`;

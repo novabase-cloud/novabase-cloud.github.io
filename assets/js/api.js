@@ -27,11 +27,11 @@ export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
 
 export function buildThumbnailUrlFromPath(filePath, options = {}) {
   const currentRepo = options.repo ? { id: options.repo ? options.repo : null, type: options.repoType || 'dataset' } : getCurrentRepo();
-  const key = store.getAuthKey() || getPassword();
-  if (!key) {
+  const token = getPassword();
+  if (!token) {
     throw new Error('Not authenticated');
   }
-  const fileUrl = `${API_BASE_URL}/${filePath.startsWith('/') ? filePath.substring(1) : filePath}?key=${encodeURIComponent(key)}&repo=${encodeURIComponent(currentRepo.id)}&type=${currentRepo.type}`;
+  const fileUrl = `${API_BASE_URL}/${filePath.startsWith('/') ? filePath.substring(1) : filePath}?token=${encodeURIComponent(token)}&repo=${encodeURIComponent(currentRepo.id)}&type=${currentRepo.type}`;
   return buildThumbnailUrl(fileUrl, options);
 }
 
