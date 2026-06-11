@@ -112,5 +112,12 @@ export function buildKeyedUrl(path, params = {}) {
       url.searchParams.set(k, v);
     }
   }
+  
+  // Inject token into URL as a fallback for the Authorization header
+  const token = getToken();
+  if (token && !url.searchParams.has('token')) {
+    url.searchParams.set('token', token);
+  }
+  
   return url.toString();
 }

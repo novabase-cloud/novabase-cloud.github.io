@@ -109,6 +109,8 @@ async function handleListing(url, auth) {
   const start = (page - 1) * limit;
   const results = filtered.slice(start, start + limit).map(i => {
     const itemPath = i.path || "";
+    const itemName = i.name || itemPath.split("/").pop() || "unnamed";
+    
     const dlUrl = new URL(url.origin);
     dlUrl.pathname = `/${itemPath}`;
     dlUrl.searchParams.set("repo", repo);
@@ -119,6 +121,7 @@ async function handleListing(url, auth) {
 
     return {
       ...i,
+      name: itemName,
       full_path: itemPath,
       download_url: dlUrl.toString()
     };
