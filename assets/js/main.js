@@ -253,20 +253,28 @@ function showLoginScreen() {
 }
 
 function bootstrap() {
+  console.log('[main] Bootstrapping application...');
   initTheme();
 
   setOnUnauthorized(() => {
+    console.warn('[main] Unauthorized access detected, redirecting to login');
     logout();
     showLoginScreen();
   });
 
-  verifyAuthOnStartup().then((authed) => {
-    if (authed) {
-      showApp();
-    } else {
-      showLoginScreen();
-    }
-  });
+  verifyAuthOnStartup()
+    .then((authed) => {
+      console.log('[main] Auth verification complete, authed:', authed);
+      if (authed) {
+        showApp();
+      } else {
+        showLoginScreen();
+      }
+    })
+    .catch((err) => {
+      console.error('[main] Critical error during bootstrap:', err);
+      showLoginScreen(); // Fallback to login on any error
+    });
 }
 
 function showApp() {
