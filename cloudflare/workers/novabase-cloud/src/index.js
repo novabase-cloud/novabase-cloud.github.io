@@ -146,17 +146,40 @@ export default {
       }
     }
 
-    const isListing = url.pathname === "/" || url.searchParams.has("page") || url.searchParams.has("limit");
+    const hasRepo = url.searchParams.has("repo");
 
-    if (isListing) {
-      return handleListing(url, auth);
+    if (hasRepo) {
+      const isListing = url.pathname === "/" || url.searchParams.has("page") || url.searchParams.has("limit");
+      if (isListing) {
+        return handleListing(url, auth);
+      }
+      const path = url.pathname.replace(/^\//, "");
+      return handleFileFetch(path, url, auth);
     }
 
-    if (!url.searchParams.has("repo")) {
-      return json({ error: "Not found" }, 404);
-    }
+    // Catch-all: pass-through proxy to Hugging Face API
+    const targetUrl = new URL(url.pathname, HF_API);
+    url.searchParams.forEach((value, key) => {
+      if (key !== "key") targetUrl.searchParams.set(key, value);
+    });
 
-    const path = url.pathname.replace(/^\//, "");
-    return handleFileFetch(path, url, auth);
+    try {
+      const res = await fetch(targetUrl.toString(), {
+        method: request.method,
+        headers: {
+          Authorization: auth,
+          "Content-Type": request.headers.get("Content-Type") || "application/json",
+          "User-Agent": "Novabase-Cloud-Router/2.0",
+        },
+        body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
+        redirect: "follow",
+      });
+      const h = new Headers(res.headers);
+      h.set("Access-Control-Allow-Origin", "*");
+      h.delete("Set-Cookie");
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+    } catch (err) {
+      return json({ error: "Routing Error", message: err.message }, 502);
+    }
   },
 };
