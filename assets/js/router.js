@@ -109,9 +109,11 @@ async function loadListing(parsed) {
   }
 
   const token = ++currentToken;
+  // Set loading state and CLEAR old data to prevent NaN/undefined in UI
   store.set({
     loading: true,
     error: null,
+    data: null, 
     path: parsed.path,
     search: parsed.search,
     extension: parsed.extension,

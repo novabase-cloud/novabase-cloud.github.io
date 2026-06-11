@@ -92,7 +92,12 @@ async function handleListing(url, auth) {
 
   return json({
     results,
-    pagination: { page, limit, totalCount, totalPages },
+    pagination: { 
+      current_page: page, 
+      limit_per_page: limit, 
+      total_items: totalCount, 
+      total_pages: totalPages 
+    },
     path,
     repo,
     type,
