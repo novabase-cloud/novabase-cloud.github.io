@@ -158,6 +158,13 @@ function handleRoute() {
 
   store.set({ navView: null });
 
+  if (parsed.path === 'version') {
+    currentToken++;
+    store.set({ loading: false, error: null, data: null, path: '' });
+    emitViewChange('version');
+    return;
+  }
+
   if (isSettingsRoute(parsed)) {
     currentToken++;
     store.set({ loading: false });

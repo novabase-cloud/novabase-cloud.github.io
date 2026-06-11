@@ -12,6 +12,7 @@ import { renderTable } from './ui/table.js';
 import { renderGrid } from './ui/grid.js';
 import { renderPagination } from './ui/pagination.js';
 import { renderSettingsView } from './ui/settings.js';
+import { renderVersionView } from './ui/version.js';
 import { getSettings, updateSettings, getCustomRepos, subscribe as subscribeSettings } from './settings.js';
 import { fetchRepos } from './api.js';
 import { setOnUnauthorized } from './utils/http.js';
@@ -45,7 +46,8 @@ function buildAppShell() {
       el('p', { class: 'page-subtitle' }, 'Browse and manage files across your Hugging Face repositories through the Cloudflare Workers API proxy.')
     ]),
     el('div', { id: 'view-dashboard' }, [toolbarSlot, breadcrumbSlot, tableSlot, paginationSlot]),
-    el('div', { id: 'view-settings', style: { display: 'none' } }, [settingsSlot])
+    el('div', { id: 'view-settings', style: { display: 'none' } }, [settingsSlot]),
+    el('div', { id: 'view-version', style: { display: 'none' } })
   ]);
 
   const body = el('div', { class: 'app-body' }, [sidebar, main]);
@@ -62,8 +64,10 @@ function setActiveView(view) {
   currentView = view;
   const dash = document.getElementById('view-dashboard');
   const settings = document.getElementById('view-settings');
+  const version = document.getElementById('view-version');
   if (dash) dash.style.display = view === 'dashboard' ? '' : 'none';
   if (settings) settings.style.display = view === 'settings' ? '' : 'none';
+  if (version) version.style.display = view === 'version' ? '' : 'none';
 }
 
 const FOLDER_ICON = '<path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"></path>';
@@ -199,6 +203,17 @@ function renderSettingsViewIfNeeded() {
   lastRenderedView = 'settings';
 }
 
+function renderVersionViewIfNeeded() {
+  if (lastRenderedView === 'version') return;
+  lastRenderedView = 'version';
+  const slot = document.getElementById('view-version');
+  if (!slot) return;
+  mount(slot, el('div', { class: 'version-view' }, [
+    el('p', { class: 'version-loading' }, 'Loading version manifest…')
+  ]));
+  renderVersionView().then(view => mount(slot, view));
+}
+
 function renderDashboardIfNeeded(state) {
   if (lastRenderedView === 'dashboard') return;
   renderToolbarOnce(state);
@@ -209,7 +224,9 @@ function renderDashboardIfNeeded(state) {
 
 function handleViewChange(view) {
   setActiveView(view);
-  if (view === 'settings') {
+  if (view === 'version') {
+    renderVersionViewIfNeeded();
+  } else if (view === 'settings') {
     renderSettingsViewIfNeeded();
   } else {
     renderDashboardIfNeeded(store.state);
