@@ -252,6 +252,23 @@ function showLoginScreen() {
   renderLogin($('#login-container'));
 }
 
+function bootstrap() {
+  initTheme();
+
+  setOnUnauthorized(() => {
+    logout();
+    showLoginScreen();
+  });
+
+  verifyAuthOnStartup().then((authed) => {
+    if (authed) {
+      showApp();
+    } else {
+      showLoginScreen();
+    }
+  });
+}
+
 function showApp() {
   store.reset();
   lastRenderedView = null;
@@ -273,7 +290,9 @@ function showApp() {
 
   store.subscribe((state) => {
     if (currentView === 'dashboard') {
-      slots.toolbarSlot.style.display = state.navView === 'storage' ? 'none' : '';
+      if (slots && slots.toolbarSlot) {
+        slots.toolbarSlot.style.display = state.navView === 'storage' ? 'none' : '';
+      }
       renderBreadcrumbArea(state);
       renderTableArea(state);
     }
@@ -300,7 +319,11 @@ function showApp() {
   });
 
   onViewChange(handleViewChange);
+  
+  // CRITICAL: Initialize router and set it to ready only AFTER app is shown and auth is verified
   initRouter();
+  setRouterReady(true);
+  
   computeFooterHash();
 }
 
@@ -370,7 +393,8 @@ async function verifyAuthOnStartup() {
     const userData = await validateToken();
     if (userData) {
       store.set({ user: userData });
-      window.location.replace('#/_storage');
+      // Use hash navigation to storage
+      window.location.hash = '#/_storage';
       return true;
     }
   }
@@ -379,13 +403,17 @@ async function verifyAuthOnStartup() {
   if (!isAuthenticated()) return false;
   
   // 3. Validate existing token
-  const userData = await validateToken();
-  if (!userData) {
-    logout();
+  try {
+    const userData = await validateToken();
+    if (!userData) {
+      return false;
+    }
+    store.set({ user: userData });
+    return true;
+  } catch (err) {
+    console.error('[main] Auth verification failed', err);
     return false;
   }
-  store.set({ user: userData });
-  return true;
 }
 
 function bootstrap() {

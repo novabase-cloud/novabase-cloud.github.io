@@ -92,8 +92,15 @@ function emitViewChange(view) {
   }
 }
 
+let isReady = false;
+
+export function setRouterReady(ready) {
+  isReady = ready;
+  if (ready) handleRoute();
+}
+
 async function loadListing(parsed) {
-  if (!parsed.repo) {
+  if (!isReady || !parsed.repo) {
     store.set({
       loading: false,
       error: null,
@@ -103,13 +110,12 @@ async function loadListing(parsed) {
       extension: parsed.extension,
       sort: parsed.sort,
       page: parsed.page,
-      repo: null
+      repo: parsed.repo ? { id: parsed.repo, type: parsed.repo_type } : null
     });
     return;
   }
 
   const token = ++currentToken;
-  // Set loading state and CLEAR old data to prevent NaN/undefined in UI
   store.set({
     loading: true,
     error: null,
@@ -148,6 +154,7 @@ async function loadListing(parsed) {
 }
 
 function handleRoute() {
+  if (!isReady) return;
   const parsed = parseHash();
   emit(parsed);
 
@@ -186,7 +193,7 @@ export function initRouter() {
     const hash = buildHash({ path: '', repo: s.lastRepo || null, repo_type: s.lastRepoType || 'dataset' });
     window.location.hash = hash;
   } else {
-    handleRoute();
+    // Note: handleRoute will be called by setRouterReady(true) in main.js
   }
 }
 

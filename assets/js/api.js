@@ -26,17 +26,20 @@ export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
 }
 
 export function buildThumbnailUrlFromPath(filePath, options = {}) {
-  const currentRepo = options.repo ? { id: options.repo ? options.repo : null, type: options.repoType || 'dataset' } : getCurrentRepo();
+  const currentRepo = options.repo ? { id: options.repo, type: options.repoType || 'dataset' } : getCurrentRepo();
   const token = getPassword();
+  
   if (!token) {
-    throw new Error('Not authenticated');
+    throw new Error('Unauthorized: No access token found');
   }
+
   const fileUrl = `${API_BASE_URL}/${filePath.startsWith('/') ? filePath.substring(1) : filePath}?token=${encodeURIComponent(token)}&repo=${encodeURIComponent(currentRepo.id)}&type=${currentRepo.type}`;
   return buildThumbnailUrl(fileUrl, options);
 }
 
 export async function listFolder({ path, search, extension, sort, page, limit, repo, repo_type }) {
   const currentRepo = repo ? { id: repo, type: repo_type || 'dataset' } : getCurrentRepo();
+  
   const params = {
     search: search || '',
     extension: extension || '',
@@ -46,19 +49,14 @@ export async function listFolder({ path, search, extension, sort, page, limit, r
     repo: currentRepo.id,
     type: currentRepo.type
   };
-  const url = buildKeyedUrl(path ? `/${path}` : '/', params);
-  const token = getPassword();
-  
-  if (!token) {
-    console.error('[api.js] Missing token for listFolder');
-    throw new Error('Unauthorized: No access token found. Please login.');
-  }
 
-  const result = await fetchJSON(url, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
+  const url = buildKeyedUrl(path ? `/${path}` : '/', params);
+  
+  // http.js automatically handles the token injection
+  const result = await fetchJSON(url);
+  
   if (!result.ok) {
-    const err = new Error(result.data?.error || 'API error');
+    const err = new Error(result.data?.message || result.data?.error || 'API error');
     err.status = result.status;
     throw err;
   }
@@ -68,7 +66,7 @@ export async function listFolder({ path, search, extension, sort, page, limit, r
 function getCurrentRepo() {
   const currentRepo = store.state.repo;
   if (!currentRepo?.id) {
-    throw new Error('No repository selected. Please add/select a repository from the sidebar.');
+    throw new Error('No repository selected');
   }
   return currentRepo;
 }
@@ -80,13 +78,7 @@ export async function fetchFileText(path, repo, repoType) {
     type: currentRepo.type
   };
   const url = buildKeyedUrl(`/${path}`, params);
-  const token = getPassword();
-  
-  if (!token) throw new Error('Unauthorized: No access token found');
-
-  const res = await fetchRaw(url, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
+  const res = await fetchRaw(url);
   if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
   return await res.text();
 }
@@ -98,29 +90,18 @@ export async function fetchFileBlob(path, repo, repoType) {
     type: currentRepo.type
   };
   const url = buildKeyedUrl(`/${path}`, params);
-  const token = getPassword();
-  
-  if (!token) throw new Error('Unauthorized: No access token found');
-
-  const res = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
+  const res = await fetchRaw(url);
   if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
   return await res.blob();
 }
 
 export async function fetchRepos() {
   const url = buildKeyedUrl('/_/repos');
-  const token = getPassword();
-  
-  if (!token) return [];
-
   try {
-    const result = await fetchJSON(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const result = await fetchJSON(url);
     return (result?.data?.repos) || [];
-  } catch (_) {
+  } catch (err) {
+    console.warn('[api] fetchRepos failed', err);
     return [];
   }
 }

@@ -25,8 +25,8 @@ export function getToken() {
   try {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
-      cachedToken = token;
-      return token;
+      cachedToken = token.trim();
+      return cachedToken;
     }
   } catch (_) {}
   return null;
@@ -52,17 +52,18 @@ export function getUserInfo() {
 export async function validateToken() {
   const token = getToken();
   if (!token) return false;
+  
   const url = `${API_BASE_URL}/api/whoami-v2`;
   try {
-    const result = await fetchJSON(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    // http.js will automatically attach the Bearer token
+    const result = await fetchJSON(url);
     if (result.ok && result.data) {
       localStorage.setItem(USER_KEY, JSON.stringify(result.data));
       return result.data;
     }
     return false;
-  } catch (_) {
+  } catch (err) {
+    console.warn('[auth] Token validation failed', err);
     return false;
   }
 }
@@ -77,34 +78,31 @@ export async function loginWithCode(code) {
     }
     return false;
   } catch (err) {
-    console.error('[auth.js] loginWithCode error', err);
+    console.error('[auth] loginWithCode error', err);
     return false;
   }
 }
 
 export function logout() {
-  const token = cachedToken;
+  const token = cachedToken || getToken();
   cachedToken = null;
 
-  // Clear HF token + user info immediately
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 
-  // Clear OAuth PKCE temp data (in case of interrupted flow)
   for (const key of OAUTH_KEYS) {
     localStorage.removeItem(key);
   }
 
-  // Clear session data: history, sidebar, last repo
   for (const key of SESSION_KEYS) {
     localStorage.removeItem(key);
   }
 
-  // Flag so next Login triggers HF consent screen
   localStorage.setItem(FORCE_CONSENT_KEY, '1');
-
-  // Revoke token with HF (best-effort, don't block)
-  revokeToken(token);
+  
+  if (token) {
+    revokeToken(token);
+  }
 }
 
 export function buildKeyedUrl(path, params = {}) {
