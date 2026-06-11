@@ -220,14 +220,37 @@ export default {
         // Not a valid URL or other parsing error, continue with original target
       }
 
+      const fetchOptions = {
+        headers: { "Authorization": auth, "User-Agent": "Novabase-Cloud-Router/2.0" },
+        redirect: "follow",
+      };
+
+      // Apply image resizing for thumbnails
+      if (url.pathname === "/thumbnail") {
+        const width = parseInt(url.searchParams.get("w")) || 128;
+        const height = parseInt(url.searchParams.get("h")) || 128;
+        const quality = parseInt(url.searchParams.get("q")) || 80;
+        const format = url.searchParams.get("format") || "webp";
+        const fit = url.searchParams.get("fit") || "cover";
+
+        fetchOptions.cf = {
+          image: {
+            width,
+            height,
+            quality,
+            format,
+            fit,
+          }
+        };
+      }
+
       try {
-        const res = await fetch(target, {
-          headers: { "Authorization": auth, "User-Agent": "Novabase-Cloud-Router/2.0" },
-          redirect: "follow",
-        });
+        const res = await fetch(target, fetchOptions);
         const h = new Headers(res.headers);
         h.set("Access-Control-Allow-Origin", "*");
         h.delete("Set-Cookie");
+        
+        // If resizing was successful, the content-type should be image/webp (if requested)
         return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
       } catch (err) {
         return json({ error: "Failed to fetch thumbnail", message: err.message }, 502);

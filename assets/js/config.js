@@ -24,10 +24,10 @@ export const HASH_PREFIX = '#h-';
 export const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 
 export const THUMBNAIL_DEFAULTS = {
-  WIDTH: 300,
-  HEIGHT: 300,
+  WIDTH: 128,
+  HEIGHT: 128,
   QUALITY: 80,
-  FORMAT: 'auto',
+  FORMAT: 'webp',
 };
 
 export const FILE_TYPES = {
