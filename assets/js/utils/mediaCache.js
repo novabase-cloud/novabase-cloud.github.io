@@ -57,9 +57,11 @@ async function clearOldSessions() {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const index = store.index('sessionId');
-
-    const request = index.openCursor(IDBKeyRange.only(sessionId), 'prev');
+    
+    // We want to iterate through all entries and remove those that don't belong to the current session.
+    // However, to be more efficient, we could skip this if we know it's already clean, 
+    // but for now, we'll just check everything.
+    const request = store.openCursor();
     request.onsuccess = () => {
       const cursor = request.result;
       if (cursor) {

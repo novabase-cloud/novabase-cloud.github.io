@@ -125,10 +125,12 @@ function renderCard(item, isParent) {
       width: THUMBNAIL_DEFAULTS.WIDTH,
       time: '0.5s',
     });
+    // For videos, we use an img tag with the video URL as a poster-like source,
+    // but we use data-src and the observer for better performance.
     const img = el('img', {
       class: 'card-thumb-img',
       alt: item.name,
-      src: thumbUrl,
+      'data-src': thumbUrl,
       onError: function() {
         this.style.display = 'none';
         const p = this.parentNode;
@@ -139,6 +141,7 @@ function renderCard(item, isParent) {
         if (fb) fb.style.display = 'flex';
       }
     });
+    getObserver().observe(img);
     thumb = el('div', { class: 'card-thumb card-thumb-media' }, [
       img,
       el('div', { class: 'card-thumb-play' }, [icon(ICONS.play, 28)]),

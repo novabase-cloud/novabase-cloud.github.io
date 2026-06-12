@@ -4,9 +4,17 @@
 
 const FORCE_CONSENT_KEY = 'huggingface_oauth_force_consent';
 
+const getRedirectUri = () => {
+  // Use current origin and pathname to construct the redirect URI dynamically,
+  // but ensure it ends with /#/login as registered in the HF app settings.
+  const origin = window.location.origin;
+  const path = window.location.pathname.replace(/\/+$/, '');
+  return `${origin}${path}/#/login`;
+};
+
 export const OAUTH_CONFIG = {
   CLIENT_ID: '6b7e058a-f8f5-4b92-810a-9497864baa26',
-  REDIRECT_URI: 'https://novabase-cloud.github.io/#/login',
+  REDIRECT_URI: getRedirectUri(),
   SCOPE: 'read-repos openid profile read-collections',
   AUTH_URL: 'https://huggingface.co/oauth/authorize',
   TOKEN_URL: 'https://huggingface.co/oauth/token',
