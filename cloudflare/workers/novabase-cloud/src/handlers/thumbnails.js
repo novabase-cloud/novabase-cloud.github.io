@@ -2,7 +2,30 @@ import { HF_API, DEFAULT_BRANCH, USER_AGENT } from "../config.js";
 import { json } from "../utils/response.js";
 import { processImage, detectFormat } from "../utils/image.js";
 
-export async function handleThumbnails(request, url, auth) {
+const SUPABASE_THUMBNAIL_URL = "https://lehfwzwfferrgjrfwiot.supabase.co/functions/v1/thumbnail-resizer";
+
+const CACHE_PARAMS = ["url", "w", "h", "q", "format", "fit", "repo", "type"];
+
+async function buildCacheKey(url, token) {
+  const cacheUrl = new URL(url.origin + url.pathname);
+
+  for (const key of CACHE_PARAMS) {
+    const value = url.searchParams.get(key);
+    if (value) cacheUrl.searchParams.set(key, value);
+  }
+
+  if (token) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+    cacheUrl.searchParams.set("_u", hash);
+  }
+
+  cacheUrl.search = new URLSearchParams([...cacheUrl.searchParams.entries()].sort()).toString();
+
+  return new Request(cacheUrl.toString(), { method: "GET" });
+}
+
+export async function handleThumbnails(request, url, auth, ctx) {
   let target = url.searchParams.get("url");
   if (!target) return json({ error: "Missing url parameter" }, 400);
 
@@ -38,6 +61,16 @@ export async function handleThumbnails(request, url, auth) {
     const format = url.searchParams.get("format") || "jpeg";
     const fit = url.searchParams.get("fit") || "cover";
 
+    const cache = caches.default;
+    const cacheKey = await buildCacheKey(url, token);
+
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      const h = new Headers(cached.headers);
+      h.set("X-Thumbnail-Status", "edge-cache-hit");
+      return new Response(cached.body, { status: cached.status, headers: h });
+    }
+
     try {
       const inputRes = await fetch(target, fetchOptions);
       if (!inputRes.ok) {
@@ -48,55 +81,58 @@ export async function handleThumbnails(request, url, auth) {
       const raw = new Uint8Array(inputBytes);
       const inputFmt = detectFormat(raw);
 
-      // CPU Limit Safety: Only attempt to resize small JPEGs.
-      // Cloudflare Workers Free Tier has a very low CPU limit (10ms).
-      // Resizing images larger than 2MB often exceeds this.
       const isSmallJpeg = inputFmt === "jpeg" && inputBytes.byteLength < 2 * 1024 * 1024;
+
+      let result = null;
 
       if (isSmallJpeg) {
         try {
-          const { bytes, contentType } = await processImage(inputBytes, {
-            width,
-            height,
-            quality,
-            format,
-            fit
-          });
-          const h = new Headers();
-          h.set("Content-Type", contentType);
-          h.set("Content-Length", String(bytes.length));
-          h.set("Cache-Control", "public, max-age=31536000, immutable");
-          h.set("Access-Control-Allow-Origin", "*");
-          h.set("X-Thumbnail-Status", "processed");
-          return new Response(bytes, { headers: h });
+          const processed = await processImage(inputBytes, { width, height, quality, format, fit });
+          result = { ...processed, status: "processed-edge" };
         } catch (procErr) {
-          console.error("Processing failed:", procErr.message);
-          // Fallback handled below
+          console.error("Local processing failed, falling back to Supabase:", procErr.message);
         }
       }
 
-      // Large File Offloading: Proxy to Supabase resizer (not redirect) so we can pass
-      // the token via Authorization header instead of URL — avoids URL length limits from JWTs.
-      const supabaseParams = new URLSearchParams(url.searchParams);
-      supabaseParams.delete('token');
-      const supabaseUrl = `https://lehfwzwfferrgjrfwiot.supabase.co/functions/v1/thumbnail-resizer?${supabaseParams.toString()}`;
-      console.log(`[thumbnail] Offloading large/unsupported image to Supabase: ${inputBytes.byteLength} bytes`);
-      
-      const supabaseHeaders = { 'User-Agent': USER_AGENT };
-      if (token) {
-        supabaseHeaders['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-      }
-      
-      const supabaseRes = await fetch(supabaseUrl, {
-        headers: supabaseHeaders,
-        redirect: 'follow',
-      });
-      
-      return new Response(supabaseRes.body, {
-        status: supabaseRes.status,
-        headers: supabaseRes.headers,
-      });
+      if (!result) {
+        const supabaseParams = new URLSearchParams(url.searchParams);
+        supabaseParams.delete("token");
+        const supabaseUrl = `${SUPABASE_THUMBNAIL_URL}?${supabaseParams.toString()}`;
 
+        const supabaseHeaders = { "User-Agent": USER_AGENT };
+        if (token) {
+          supabaseHeaders["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+        }
+
+        const supabaseRes = await fetch(supabaseUrl, { headers: supabaseHeaders, redirect: "follow" });
+        if (!supabaseRes.ok) {
+          const errBody = await supabaseRes.text().catch(() => "");
+          console.error(`[thumbnail] Supabase resizer failed (${supabaseRes.status}): ${errBody}`);
+          return json({ error: "Thumbnail conversion failed upstream", status: supabaseRes.status }, 502);
+        }
+
+        const bytes = new Uint8Array(await supabaseRes.arrayBuffer());
+        result = {
+          bytes,
+          contentType: supabaseRes.headers.get("Content-Type") || "image/webp",
+          status: "processed-supabase",
+        };
+      }
+
+      const h = new Headers();
+      h.set("Content-Type", result.contentType);
+      h.set("Content-Length", String(result.bytes.length));
+      h.set("Cache-Control", "public, max-age=31536000, immutable");
+      h.set("Access-Control-Allow-Origin", "*");
+      h.set("X-Thumbnail-Status", result.status);
+
+      const response = new Response(result.bytes, { headers: h });
+
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      }
+
+      return response;
     } catch (err) {
       return json({ error: "Failed to fetch source", message: err.message }, 502);
     }

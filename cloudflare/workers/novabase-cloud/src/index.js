@@ -8,7 +8,7 @@ import { handleThumbnails } from "./handlers/thumbnails.js";
 import { handleProxy } from "./handlers/proxy.js";
 
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
@@ -17,8 +17,8 @@ export default {
 
     const auth = extractToken(request, url);
     if (!auth) {
-      return json({ 
-        error: "Unauthorized", 
+      return json({
+        error: "Unauthorized",
         message: "Missing or invalid Bearer token. Please login with Hugging Face.",
         debug: {
           path: url.pathname,
@@ -39,7 +39,7 @@ export default {
     }
 
     if (url.pathname === "/thumbnail" || url.pathname === "/video-thumbnail") {
-      return handleThumbnails(request, url, auth);
+      return handleThumbnails(request, url, auth, ctx);
     }
 
     if (url.searchParams.has("repo")) {
