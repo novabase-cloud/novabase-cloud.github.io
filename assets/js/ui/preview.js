@@ -1,12 +1,12 @@
 import { el, icon, clear, mount } from '../utils/dom.js';
-import { fetchFileText, fetchFileBlob, buildThumbnailUrlFromPath, buildVideoThumbnailUrl } from '../api.js';
+import { fetchFileText, fetchFileBlob, buildImageUrl } from '../api.js';
 import { fetchRaw } from '../utils/http.js';
 import { getPassword } from '../auth.js';
 import { store } from '../store.js';
-import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT, THUMBNAIL_DEFAULTS } from '../config.js';
+import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT } from '../config.js';
 import { getFileKey } from '../utils/format.js';
 import { showToast } from './toast.js';
-import { mediaCache, fetchAndCache, createObjectURLFromCache } from '../utils/mediaCache.js';
+import { mediaCache, fetchAndCache, createObjectURLFromCache, getCachedImageUrl, cacheImageUrl } from '../utils/mediaCache.js';
 
 const ICONS = {
   close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
@@ -337,47 +337,22 @@ function buildCarousel(container) {
     const isAudio = FILE_TYPES.AUDIO?.includes(key);
     const thumb = el('div', { class: 'carousel-thumb', 'data-index': i, onClick: () => goTo(i) });
     if (isVid) {
-      const thumbUrl = buildVideoThumbnailUrl(item.download_url, {
-        width: THUMBNAIL_DEFAULTS.WIDTH,
-        height: THUMBNAIL_DEFAULTS.HEIGHT,
-        time: '0.5s',
-      });
-      const img = el('img', { loading: 'lazy', src: thumbUrl, class: 'carousel-thumb-img', alt: item.name });
-      img.onerror = () => {
-        img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-video-placeholder' }, [
-          el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 24)])
-        ]));
-      };
-      thumb.appendChild(img);
+      thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-video-placeholder' }, [
+        el('span', { class: 'carousel-thumb-play' }, [icon(ICONS.play, 24)])
+      ]));
     } else if (isAudio) {
       thumb.appendChild(el('div', { class: 'carousel-thumb-img carousel-thumb-audio' }, [
         el('span', { class: 'carousel-thumb-audio-icon' }, [icon(ICONS.volume, 28)])
       ]));
     } else {
-      const isHeic = key === 'heic' || key === 'heif';
-      if (isHeic) {
-        const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
-          width: THUMBNAIL_DEFAULTS.WIDTH,
-          height: THUMBNAIL_DEFAULTS.HEIGHT,
-          quality: THUMBNAIL_DEFAULTS.QUALITY,
-          format: THUMBNAIL_DEFAULTS.FORMAT,
-        });
-        thumb.appendChild(el('img', { loading: 'lazy', src: thumbUrl, class: 'carousel-thumb-img', alt: item.name }));
-      } else {
-        const thumbUrl = buildThumbnailUrlFromPath(item.full_path, {
-          width: THUMBNAIL_DEFAULTS.WIDTH,
-          height: THUMBNAIL_DEFAULTS.HEIGHT,
-          quality: THUMBNAIL_DEFAULTS.QUALITY,
-          format: THUMBNAIL_DEFAULTS.FORMAT,
-        });
-        const img = el('img', { loading: 'lazy', src: thumbUrl, class: 'carousel-thumb-img', alt: item.name });
-        img.onerror = () => {
-          img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
-            el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
-          ]));
-        };
-        thumb.appendChild(img);
-      }
+      const imgUrl = buildImageUrl(item.full_path);
+      const img = el('img', { loading: 'lazy', src: imgUrl, class: 'carousel-thumb-img', alt: item.name });
+      img.onerror = () => {
+        img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
+          el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
+        ]));
+      };
+      thumb.appendChild(img);
     }
     container.appendChild(thumb);
   }
@@ -442,10 +417,18 @@ async function loadMedia(idx) {
         currentObjectUrl = URL.createObjectURL(blob);
         mount(slot, buildAudioPlayer(currentObjectUrl, item.name));
       } else if (isImg) {
-        const blob = await fetchAndCache(item.download_url, item.full_path);
-        if (idx !== currentIndex || !backdrop) return;
-        currentObjectUrl = URL.createObjectURL(blob);
-        mount(slot, buildImageView(currentObjectUrl, key));
+        const cachedUrl = getCachedImageUrl(item.full_path);
+        if (cachedUrl) {
+          if (idx !== currentIndex || !backdrop) return;
+          currentObjectUrl = cachedUrl;
+          mount(slot, buildImageView(currentObjectUrl, key));
+        } else {
+          const blob = await fetchAndCache(item.download_url, item.full_path);
+          if (idx !== currentIndex || !backdrop) return;
+          cacheImageUrl(item.full_path, blob);
+          currentObjectUrl = URL.createObjectURL(blob);
+          mount(slot, buildImageView(currentObjectUrl, key));
+        }
       }
     }
   } catch (err) {
@@ -466,11 +449,20 @@ async function loadMediaForce(idx, slot, item, key, isAudio, isImg) {
       currentObjectUrl = URL.createObjectURL(blob);
       mount(slot, buildAudioPlayer(currentObjectUrl, item.name));
     } else if (isImg) {
-      const blob = await fetchAndCache(item.download_url, item.full_path);
-      if (idx !== currentIndex || !backdrop) return;
-      revokeCurrentUrl();
-      currentObjectUrl = URL.createObjectURL(blob);
-      mount(slot, buildImageView(currentObjectUrl, key));
+      const cachedUrl = getCachedImageUrl(item.full_path);
+      if (cachedUrl) {
+        if (idx !== currentIndex || !backdrop) return;
+        revokeCurrentUrl();
+        currentObjectUrl = cachedUrl;
+        mount(slot, buildImageView(currentObjectUrl, key));
+      } else {
+        const blob = await fetchAndCache(item.download_url, item.full_path);
+        if (idx !== currentIndex || !backdrop) return;
+        revokeCurrentUrl();
+        cacheImageUrl(item.full_path, blob);
+        currentObjectUrl = URL.createObjectURL(blob);
+        mount(slot, buildImageView(currentObjectUrl, key));
+      }
     }
   } catch (err) {
     if (idx !== currentIndex || !backdrop) return;
@@ -480,16 +472,10 @@ async function loadMediaForce(idx, slot, item, key, isAudio, isImg) {
 }
 
 function buildVideoPlayer(fullPath, downloadUrl) {
-  const posterUrl = buildVideoThumbnailUrl(downloadUrl, {
-    width: THUMBNAIL_DEFAULTS.WIDTH,
-    time: '0.5s',
-  });
-
   const video = el('video', {
     class: 'video-player-element',
     preload: 'none',
     playsinline: true,
-    poster: posterUrl
   });
 
   video.dataset.fullPath = fullPath;
@@ -594,11 +580,19 @@ function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv
         return;
       }
       if (isImage && key !== 'svg') {
-        const blob = await fetchAndCache(buildDownloadHref(path), path);
-        if (!body.isConnected) return;
-        const url = URL.createObjectURL(blob);
-        clear(body);
-        body.appendChild(buildImageView(url, key));
+        const cachedUrl = getCachedImageUrl(path);
+        if (cachedUrl) {
+          if (!body.isConnected) return;
+          clear(body);
+          body.appendChild(buildImageView(cachedUrl, key));
+        } else {
+          const blob = await fetchAndCache(buildDownloadHref(path), path);
+          if (!body.isConnected) return;
+          const url = URL.createObjectURL(blob);
+          cacheImageUrl(path, blob);
+          clear(body);
+          body.appendChild(buildImageView(url, key));
+        }
         return;
       }
       if (isJson) {

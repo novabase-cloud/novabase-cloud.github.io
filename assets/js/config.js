@@ -1,6 +1,4 @@
 export const API_BASE_URL = 'https://novabase-cloud.mailtestvartext.workers.dev';
-export const SUPABASE_URL = 'https://lehfwzwfferrgjrfwiot.supabase.co';
-export const SUPABASE_RESIZER_URL = `${SUPABASE_URL}/functions/v1/thumbnail-resizer`;
 
 export const STORAGE_KEYS = {
   HF_TOKEN: 'novabase.hf.token',
@@ -25,13 +23,6 @@ export const DEFAULTS = {
 export const HASH_PREFIX = '#h-';
 
 export const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
-
-export const THUMBNAIL_DEFAULTS = {
-  WIDTH: 128,
-  HEIGHT: 128,
-  QUALITY: 80,
-  FORMAT: 'webp',
-};
 
 export const FILE_TYPES = {
   VIDEO: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv'],

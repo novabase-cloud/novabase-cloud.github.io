@@ -1,44 +1,14 @@
 import { buildKeyedUrl, getPassword } from './auth.js';
 import { fetchJSON, fetchRaw } from './utils/http.js';
 import { store } from './store.js';
-import { API_BASE_URL, THUMBNAIL_DEFAULTS } from './config.js';
 
-function buildHuggingFaceUrl(path, repo, type) {
-  const repoType = type === 'model' ? '' : 'datasets/';
-  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  return `https://huggingface.co/${repoType}${repo}/resolve/main/${cleanPath}`;
-}
-
-export function buildThumbnailUrl(imageUrl, options = {}) {
-  // If imageUrl is already a Worker URL, we should try to keep it as is, 
-  // but the Worker will have issues fetching itself.
-  // The best way is to ensure the Worker handles 'target' pointing to itself or 
-  // we pass the direct HF URL.
+export function buildImageUrl(filePath, repo, repoType) {
+  const currentRepo = repo ? { id: repo, type: repoType || 'dataset' } : getCurrentRepo();
   const params = {
-    url: imageUrl,
-    ...(options.width && { w: String(options.width) }),
-    ...(options.height && { h: String(options.height) }),
-    ...(options.format && { format: options.format }),
-    ...(options.quality && { q: String(options.quality) }),
-    ...(options.fit && { fit: options.fit })
+    repo: currentRepo.id,
+    type: currentRepo.type
   };
-  return buildKeyedUrl('/thumbnail', params);
-}
-
-export function buildVideoThumbnailUrl(videoDownloadUrl, options = {}) {
-  const params = {
-    url: videoDownloadUrl,
-    time: options.time || '0.5s',
-    ...(options.width && { w: String(options.width) }),
-    ...(options.height && { h: String(options.height) })
-  };
-  return buildKeyedUrl('/video-thumbnail', params);
-}
-
-export function buildThumbnailUrlFromPath(filePath, options = {}) {
-  const currentRepo = options.repo ? { id: options.repo, type: options.repoType || 'dataset' } : getCurrentRepo();
-  const hfUrl = buildHuggingFaceUrl(filePath, currentRepo.id, currentRepo.type);
-  return buildThumbnailUrl(hfUrl, options);
+  return buildKeyedUrl(`/${filePath.startsWith('/') ? filePath.substring(1) : filePath}`, params);
 }
 
 export async function listFolder({ path, search, extension, sort, page, limit, repo, repo_type }) {

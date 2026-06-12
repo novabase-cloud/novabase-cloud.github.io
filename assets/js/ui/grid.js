@@ -2,9 +2,9 @@ import { el, icon } from '../utils/dom.js';
 import { formatBytes, getFileKey, getParentPath } from '../utils/format.js';
 import { navigate } from '../router.js';
 import { openPreview } from './preview.js';
-import { FILE_TYPES, THUMBNAIL_DEFAULTS } from '../config.js';
+import { FILE_TYPES } from '../config.js';
 import { getSettings } from '../settings.js';
-import { buildThumbnailUrlFromPath, buildVideoThumbnailUrl } from '../api.js';
+import { buildImageUrl } from '../api.js';
 
 const ICONS = {
   folder: '<path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"></path>',
@@ -99,16 +99,11 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-folder-icon' }, [icon(ICONS.folder, 36)])
     ]);
   } else if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') {
-    const thumbUrl = buildThumbnailUrlFromPath(item.path || item.full_path, {
-      width: THUMBNAIL_DEFAULTS.WIDTH,
-      height: THUMBNAIL_DEFAULTS.HEIGHT,
-      quality: THUMBNAIL_DEFAULTS.QUALITY,
-      format: THUMBNAIL_DEFAULTS.FORMAT,
-    });
+    const imgUrl = buildImageUrl(item.path || item.full_path);
     const img = el('img', {
       class: 'card-thumb-img',
       alt: item.name,
-      'data-src': thumbUrl,
+      'data-src': imgUrl,
       onError: function() {
         this.style.display = 'none';
         const next = this.nextElementSibling;
@@ -121,31 +116,9 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.image, 28)])
     ]);
   } else if (FILE_TYPES.VIDEO.includes(key)) {
-    const thumbUrl = buildVideoThumbnailUrl(item.download_url, {
-      width: THUMBNAIL_DEFAULTS.WIDTH,
-      time: '0.5s',
-    });
-    // For videos, we use an img tag with the video URL as a poster-like source,
-    // but we use data-src and the observer for better performance.
-    const img = el('img', {
-      class: 'card-thumb-img',
-      alt: item.name,
-      'data-src': thumbUrl,
-      onError: function() {
-        this.style.display = 'none';
-        const p = this.parentNode;
-        if (!p) return;
-        const play = p.querySelector('.card-thumb-play');
-        if (play) play.style.display = 'none';
-        const fb = p.querySelector('.card-thumb-fallback');
-        if (fb) fb.style.display = 'flex';
-      }
-    });
-    getObserver().observe(img);
-    thumb = el('div', { class: 'card-thumb card-thumb-media' }, [
-      img,
+    thumb = el('div', { class: 'card-thumb card-thumb-media card-thumb-video' }, [
       el('div', { class: 'card-thumb-play' }, [icon(ICONS.play, 28)]),
-      el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.video, 28)])
+      el('span', { class: 'card-thumb-fallback' }, [icon(ICONS.video, 28)])
     ]);
   } else if (FILE_TYPES.AUDIO?.includes(key)) {
     thumb = el('div', { class: 'card-thumb card-thumb-audio' }, [

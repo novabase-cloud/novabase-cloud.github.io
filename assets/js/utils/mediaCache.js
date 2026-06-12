@@ -214,3 +214,90 @@ export async function fetchAndCache(url, path) {
   await mediaCache.set(path, blob);
   return blob;
 }
+
+// ── localStorage Image Cache ──
+
+const LS_CACHE_PREFIX = 'novabase.imgcache';
+const LS_MANIFEST_KEY = 'novabase.imgcache.manifest';
+const MAX_LS_CACHE_SIZE = 4 * 1024 * 1024;
+
+function lsHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return `${LS_CACHE_PREFIX}.${Math.abs(hash).toString(36)}`;
+}
+
+function lsGetManifest() {
+  try {
+    const data = localStorage.getItem(LS_MANIFEST_KEY);
+    return data ? JSON.parse(data) : {};
+  } catch {
+    return {};
+  }
+}
+
+function lsSaveManifest(m) {
+  try {
+    localStorage.setItem(LS_MANIFEST_KEY, JSON.stringify(m));
+  } catch (e) {
+    console.warn('[imgCache] Failed to save manifest:', e);
+  }
+}
+
+export function getCachedImageUrl(filePath) {
+  const manifest = lsGetManifest();
+  const entry = manifest[filePath];
+  if (!entry) return null;
+  try {
+    const dataUrl = localStorage.getItem(lsHash(filePath));
+    if (!dataUrl) {
+      delete manifest[filePath];
+      lsSaveManifest(manifest);
+      return null;
+    }
+    return dataUrl;
+  } catch {
+    return null;
+  }
+}
+
+export async function cacheImageUrl(filePath, blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const size = dataUrl.length;
+      if (size > MAX_LS_CACHE_SIZE) {
+        resolve(false);
+        return;
+      }
+      const manifest = lsGetManifest();
+      const total = Object.values(manifest).reduce((s, e) => s + (e.size || 0), 0);
+      if (total + size > MAX_LS_CACHE_SIZE) {
+        const entries = Object.entries(manifest).sort(([, a], [, b]) => a.timestamp - b.timestamp);
+        let freed = total;
+        for (const [key, val] of entries) {
+          if (freed + size <= MAX_LS_CACHE_SIZE) break;
+          try { localStorage.removeItem(lsHash(key)); } catch {}
+          delete manifest[key];
+          freed -= val.size || 0;
+        }
+      }
+      try {
+        localStorage.setItem(lsHash(filePath), dataUrl);
+        manifest[filePath] = { size, timestamp: Date.now() };
+        lsSaveManifest(manifest);
+        resolve(true);
+      } catch (e) {
+        console.warn('[imgCache] localStorage set failed:', e);
+        resolve(false);
+      }
+    };
+    reader.onerror = () => resolve(false);
+    reader.readAsDataURL(blob);
+  });
+}
