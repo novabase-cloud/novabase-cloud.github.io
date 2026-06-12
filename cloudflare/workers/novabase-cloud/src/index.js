@@ -19,13 +19,23 @@ export default {
     if (!auth) {
       return json({ 
         error: "Unauthorized", 
-        message: "Missing or invalid Bearer token. Please login with Hugging Face." 
+        message: "Missing or invalid Bearer token. Please login with Hugging Face.",
+        debug: {
+          path: url.pathname,
+          method: request.method,
+          hasTokenParam: url.searchParams.has("token"),
+          hasAuthHeader: !!request.headers.get("Authorization")
+        }
       }, 401);
     }
 
     // Router
     if (url.pathname === "/_/repos") {
       return handleRepos(auth);
+    }
+
+    if (url.pathname === "/api/whoami-v2" || url.pathname === "/oauth/userinfo") {
+      return handleProxy(request, url, auth);
     }
 
     if (url.pathname === "/thumbnail" || url.pathname === "/video-thumbnail") {

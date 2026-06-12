@@ -85,26 +85,41 @@ export async function validateToken() {
   let token = getToken();
   if (!token) return false;
   
-  const url = `${API_BASE_URL}/api/whoami-v2`;
+  // Try userinfo first (standard for OAuth)
+  const url = `${API_BASE_URL}/oauth/userinfo`;
   try {
-    console.log('[auth] Validating token with worker...');
+    console.log('[auth] Validating token with worker (userinfo)...');
     let result = await fetchJSON(url, { skipAuthHandler: true });
     
-    // If unauthorized, try to refresh once
+    // If 404 or 401, try whoami-v2 as fallback
+    if (result.status === 404 || result.status === 401) {
+      console.warn(`[auth] userinfo failed (${result.status}), trying whoami-v2 fallback...`);
+      const fallbackUrl = `${API_BASE_URL}/api/whoami-v2`;
+      result = await fetchJSON(fallbackUrl, { skipAuthHandler: true });
+    }
+
+    // If still unauthorized, try to refresh once
     if (result.status === 401) {
       console.warn('[auth] Token unauthorized (401), trying to refresh...');
       const refreshed = await tryRefresh();
       if (refreshed) {
-        token = getToken();
-        // Retry validation with the new token
+        // Retry with the refreshed token (fetchJSON automatically uses the latest from localStorage)
         result = await fetchJSON(url, { skipAuthHandler: true });
       }
     }
 
     if (result.ok && result.data) {
-      console.log('[auth] Token is valid for user:', result.data.name || result.data.username);
-      localStorage.setItem(USER_KEY, JSON.stringify(result.data));
-      return result.data;
+      const user = result.data;
+      // Normalize data (handle differences between whoami-v2 and userinfo)
+      const normalized = {
+        name: user.preferred_username || user.name || user.username,
+        fullname: user.fullname || user.name,
+        avatarUrl: user.picture || user.avatarUrl,
+        ...user
+      };
+      console.log('[auth] Token is valid for user:', normalized.name);
+      localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+      return normalized;
     }
     
     console.warn('[auth] Token validation failed with status:', result.status);
