@@ -1,12 +1,12 @@
 {
-  "overall": "357f1a7f859f52cf7ae8cba2827f67c9987033925ca3c3f0296b5b7fab5ca273",
+  "overall": "3a7261f8e76402c4edb25e448b5ec445d0aebac0a35c6b48f72320c93e6776ef",
   "files": {
     ".gitignore": "01365d2a633b5ec5c2bfcdf4a17dbc67e7ab2834c48e3bc73b1b5c2e66a5946b",
     "AGENTS.md": "b312f904e52e0b971c916cff37d6f7751afc8bc5ec20f84f799c1e56de6b8506",
     "FEATURES.md": "0dfd2da798a57c1e9ed3fe28bb634ead8319b334527c104b1295411751447b8e",
     "README.md": "b3921a8149bc138ab3570c8eecb2b9402636d063f03cc89f92816005faabc083",
     "assets/css/base.css": "11c4e2c453c07f5c10d05df59998148bfcd87ea65a8b4ae0192a8164ca10d7dc",
-    "assets/css/components.css": "42adc5acfb98f12e76ee63d469fd1c2b18f040174cb662428e634724da6f1e2c",
+    "assets/css/components.css": "bf628c264715d5c0ac37133cadeb2358a2b4e61214ef27e152a3845369d4444e",
     "assets/css/layout.css": "c1332e5b1572c66f69ddb990c57627a79d9de52aa0b3ffce54bba7b0ac0a2c38",
     "assets/css/login.css": "e1a92c167699de73c1eeaa0c2764b9d6dd3609b923652edbf162cd95ede772ab",
     "assets/css/variables.css": "d0adb8dbf2a5d94abfdf5e5439547f90499d7562fbce751b792d98367fdc5dbc",
@@ -23,7 +23,7 @@
     "assets/js/ui/header.js": "dae53e0228692999a5d290bfb31354bd9aebef7c84dc447694b50c524f221514",
     "assets/js/ui/login.js": "38e26ad4e54d2b5a31bbc7a54d835e14e58a663385438359d7a8fc3ced56cf5a",
     "assets/js/ui/pagination.js": "f355283d61599c92882f00da20db6d34514ed3e2908d4b75d098ffd4da5347fd",
-    "assets/js/ui/preview.js": "02a76b41f0bfb0e3fbfdaed0ca4f21fbd9709fbbc3dad530101643704f0880f5",
+    "assets/js/ui/preview.js": "a0d22831d7cc98fbb47b88ae6d21f5ecadd7a1ec4e38ae90b8afbd55f8a574aa",
     "assets/js/ui/settings.js": "5bb30ad525c9217d797b56054fffe828c98b349468a9513da0b77abcf6578c19",
     "assets/js/ui/sidebar.js": "b1fc0b9483efa60bb7c849f9fedd582cf7e1f03b8a63ffd31a396be04c13138b",
     "assets/js/ui/table.js": "d02da912a227050b659acbafc97889752de8b43baf562805c5f1582a9c5fb9bc",

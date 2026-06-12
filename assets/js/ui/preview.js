@@ -696,14 +696,156 @@ function buildImageView(url, ext) {
     ]);
   }
   const img = el('img', { src: url, alt: 'Preview', class: 'modal-image' });
+  const container = el('div', { class: 'modal-image-zoom-container' }, [img]);
+
+  let scale = 1, tx = 0, ty = 0;
+  let isPanning = false;
+  let panStartX, panStartY, panStartTx, panStartTy;
+
+  function apply() {
+    img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+
+  function clampBounds() {
+    if (scale <= 1.001) {
+      tx = 0; ty = 0;
+      apply();
+      return;
+    }
+    apply();
+    const cr = container.getBoundingClientRect();
+    const ir = img.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (ir.left > cr.left) dx = cr.left - ir.left;
+    else if (ir.right < cr.right) dx = cr.right - ir.right;
+    if (ir.top > cr.top) dy = cr.top - ir.top;
+    else if (ir.bottom < cr.bottom) dy = cr.bottom - ir.bottom;
+    if (dx || dy) { tx += dx; ty += dy; apply(); }
+  }
+
+  function zoomAt(delta, clientX, clientY) {
+    const cr = container.getBoundingClientRect();
+    const cx = clientX - cr.left - cr.width / 2;
+    const cy = clientY - cr.top - cr.height / 2;
+    const ratio = Math.pow(1.0012, -delta);
+    const newScale = Math.max(1, Math.min(15, scale * ratio));
+    if (newScale === scale) return;
+    const ar = newScale / scale;
+    tx = cx * (1 - ar) + tx * ar;
+    ty = cy * (1 - ar) + ty * ar;
+    scale = newScale;
+    clampBounds();
+  }
+
+  container.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      zoomAt(e.deltaY, e.clientX, e.clientY);
+    }
+  }, { passive: false });
+
+  container.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (scale <= 1.001) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panStartTx = tx;
+    panStartTy = ty;
+    container.classList.add('is-grabbing');
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    tx = panStartTx + (e.clientX - panStartX);
+    ty = panStartTy + (e.clientY - panStartY);
+    clampBounds();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isPanning) {
+      isPanning = false;
+      container.classList.remove('is-grabbing');
+    }
+  });
+
+  img.addEventListener('dblclick', (e) => {
+    if (scale > 1.001) {
+      scale = 1; tx = 0; ty = 0;
+      apply();
+    } else {
+      zoomAt(-600, e.clientX, e.clientY);
+    }
+  });
+
+  let touchDist = 0;
+  let touchMidX, touchMidY;
+  let touchTx, touchTy;
+  let touchScale = 1;
+  let isPinching = false;
+
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1 && scale > 1.001) {
+      isPanning = true;
+      panStartX = e.touches[0].clientX;
+      panStartY = e.touches[0].clientY;
+      panStartTx = tx;
+      panStartTy = ty;
+    } else if (e.touches.length === 2) {
+      isPanning = false;
+      isPinching = true;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchDist = Math.sqrt(dx * dx + dy * dy);
+      touchMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      touchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      touchTx = tx;
+      touchTy = ty;
+      touchScale = scale;
+    }
+  });
+
+  container.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const ratio = dist / touchDist;
+      const newScale = Math.max(1, Math.min(15, touchScale * ratio));
+      const cr = container.getBoundingClientRect();
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const cx = midX - cr.left - cr.width / 2;
+      const cy = midY - cr.top - cr.height / 2;
+      const ar = newScale / touchScale;
+      tx = cx * (1 - ar) + touchTx * ar;
+      ty = cy * (1 - ar) + touchTy * ar;
+      scale = newScale;
+      clampBounds();
+    } else if (e.touches.length === 1 && isPanning) {
+      if (scale <= 1.001) return;
+      tx = panStartTx + (e.touches[0].clientX - panStartX);
+      ty = panStartTy + (e.touches[0].clientY - panStartY);
+      clampBounds();
+    }
+  }, { passive: false });
+
+  container.addEventListener('touchend', () => {
+    isPanning = false;
+    isPinching = false;
+  });
+
   img.onerror = () => {
-    img.replaceWith(el('div', { class: 'modal-image-placeholder' }, [
+    container.replaceWith(el('div', { class: 'modal-image-placeholder' }, [
       el('div', { class: 'placeholder-icon' }, ['🖼']),
       el('p', {}, 'Unable to load image'),
       el('p', { class: 'placeholder-hint' }, 'Format may not be supported by browser')
     ]));
   };
-  return img;
+
+  return container;
 }
 
 function buildAudioPlayer(url, name) {
