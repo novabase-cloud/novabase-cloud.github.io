@@ -48,32 +48,42 @@ export async function handleThumbnails(request, url, auth) {
       const raw = new Uint8Array(inputBytes);
       const inputFmt = detectFormat(raw);
 
-      if (inputFmt === "jpeg") {
-        const { bytes, contentType } = await processImage(inputBytes, {
-          width,
-          height,
-          quality,
-          format,
-          fit
-        });
-        const h = new Headers();
-        h.set("Content-Type", contentType);
-        h.set("Content-Length", String(bytes.length));
-        h.set("Cache-Control", "public, max-age=31536000, immutable");
-        h.set("Access-Control-Allow-Origin", "*");
-        return new Response(bytes, { headers: h });
+      // CPU Limit Safety: Only attempt to resize small JPEGs.
+      // Cloudflare Workers Free Tier has a very low CPU limit (10ms).
+      // Resizing images larger than 2MB often exceeds this.
+      const isSmallJpeg = inputFmt === "jpeg" && inputBytes.byteLength < 2 * 1024 * 1024;
+
+      if (isSmallJpeg) {
+        try {
+          const { bytes, contentType } = await processImage(inputBytes, {
+            width,
+            height,
+            quality,
+            format,
+            fit
+          });
+          const h = new Headers();
+          h.set("Content-Type", contentType);
+          h.set("Content-Length", String(bytes.length));
+          h.set("Cache-Control", "public, max-age=31536000, immutable");
+          h.set("Access-Control-Allow-Origin", "*");
+          h.set("X-Thumbnail-Status", "processed");
+          return new Response(bytes, { headers: h });
+        } catch (procErr) {
+          console.error("Processing failed:", procErr.message);
+          // Fallback handled below
+        }
       }
 
-      const h = new Headers(inputRes.headers);
-      h.set("Access-Control-Allow-Origin", "*");
-      h.delete("Set-Cookie");
-      return new Response(inputRes.body, {
-        status: inputRes.status,
-        statusText: inputRes.statusText,
-        headers: h
-      });
+      // Large File Offloading: If image is large (> 2MB) or not JPEG, redirect to Supabase resizer
+      // This saves Cloudflare CPU and uses Supabase's more generous limits.
+      const supabaseResizer = `https://lehfwzwfferrgjrfwiot.supabase.co/functions/v1/thumbnail-resizer?${url.searchParams.toString()}`;
+      console.log(`[thumbnail] Offloading large/unsupported image to Supabase: ${inputBytes.byteLength} bytes`);
+      
+      return Response.redirect(supabaseResizer, 302);
+
     } catch (err) {
-      return json({ error: "Failed to process thumbnail", message: err.message }, 502);
+      return json({ error: "Failed to fetch source", message: err.message }, 502);
     }
   }
 

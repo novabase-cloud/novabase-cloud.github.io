@@ -1,4 +1,6 @@
 export const API_BASE_URL = 'https://novabase-cloud.mailtestvartext.workers.dev';
+export const SUPABASE_URL = 'https://lehfwzwfferrgjrfwiot.supabase.co';
+export const SUPABASE_RESIZER_URL = `${SUPABASE_URL}/functions/v1/thumbnail-resizer`;
 
 export const STORAGE_KEYS = {
   HF_TOKEN: 'novabase.hf.token',

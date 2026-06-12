@@ -23,18 +23,15 @@ function calculateTransform(srcW, srcH, dstW, dstH, fit) {
     const offsetY = Math.round((srcH - cropH) / 2);
     return { cropX: offsetX, cropY: offsetY, cropW, cropH, resizeW: dstW, resizeH: dstH };
   }
-  if (fit === "scale-down" && srcW <= dstW && srcH <= dstH) {
-    return { cropX: 0, cropY: 0, cropW: srcW, cropH: srcH, resizeW: srcW, resizeH: srcH };
-  }
   const srcRatio = srcW / srcH;
   const dstRatio = dstW / dstH;
   let resizeW, resizeH;
   if (srcRatio > dstRatio) {
-    resizeW = dstW;
-    resizeH = Math.round(dstW / srcRatio);
+    resizeW = Math.min(srcW, dstW);
+    resizeH = Math.round(resizeW / srcRatio);
   } else {
-    resizeH = dstH;
-    resizeW = Math.round(dstH * srcRatio);
+    resizeH = Math.min(srcH, dstH);
+    resizeW = Math.round(resizeH * srcRatio);
   }
   return { cropX: 0, cropY: 0, cropW: srcW, cropH: srcH, resizeW, resizeH };
 }
@@ -43,94 +40,102 @@ function cropData(data, srcW, srcH, x) {
   if (x.cropX === 0 && x.cropY === 0 && x.cropW === srcW && x.cropH === srcH) return data;
   const out = new Uint8Array(x.cropW * x.cropH * 4);
   for (let y = 0; y < x.cropH; y++) {
-    for (let px = 0; px < x.cropW; px++) {
-      const si = ((x.cropY + y) * srcW + (x.cropX + px)) * 4;
-      const di = (y * x.cropW + px) * 4;
-      out[di] = data[si];
-      out[di + 1] = data[si + 1];
-      out[di + 2] = data[si + 2];
-      out[di + 3] = data[si + 3];
-    }
+    const srcRowStart = ((x.cropY + y) * srcW + x.cropX) * 4;
+    const dstRowStart = y * x.cropW * 4;
+    out.set(data.subarray(srcRowStart, srcRowStart + x.cropW * 4), dstRowStart);
   }
   return out;
 }
 
 function bilinearResize(data, srcW, srcH, dstW, dstH) {
-  const src = new Uint8Array(data);
   const dst = new Uint8Array(dstW * dstH * 4);
-  const xRatio = srcW / dstW;
-  const yRatio = srcH / dstH;
+  const xRatio = (srcW - 1) / dstW;
+  const yRatio = (srcH - 1) / dstH;
+  
   for (let dy = 0; dy < dstH; dy++) {
+    const sy = dy * yRatio;
+    const iy = Math.floor(sy);
+    const fy = sy - iy;
+    const y1 = iy + 1;
+    
     for (let dx = 0; dx < dstW; dx++) {
       const sx = dx * xRatio;
-      const sy = dy * yRatio;
       const ix = Math.floor(sx);
-      const iy = Math.floor(sy);
       const fx = sx - ix;
-      const fy = sy - iy;
-      const x1 = Math.min(ix + 1, srcW - 1);
-      const y1 = Math.min(iy + 1, srcH - 1);
+      const x1 = ix + 1;
+
+      const idx00 = (iy * srcW + ix) * 4;
+      const idx10 = (iy * srcW + x1) * 4;
+      const idx01 = (y1 * srcW + ix) * 4;
+      const idx11 = (y1 * srcW + x1) * 4;
+      const dstIdx = (dy * dstW + dx) * 4;
+
       for (let c = 0; c < 4; c++) {
-        const p00 = src[(iy * srcW + ix) * 4 + c];
-        const p10 = src[(iy * srcW + x1) * 4 + c];
-        const p01 = src[(y1 * srcW + ix) * 4 + c];
-        const p11 = src[(y1 * srcW + x1) * 4 + c];
+        const p00 = data[idx00 + c];
+        const p10 = data[idx10 + c];
+        const p01 = data[idx01 + c];
+        const p11 = data[idx11 + c];
+        
         const top = p00 + (p10 - p00) * fx;
         const bot = p01 + (p11 - p01) * fx;
-        dst[(dy * dstW + dx) * 4 + c] = Math.round(top + (bot - top) * fy);
+        dst[dstIdx + c] = (top + (bot - top) * fy) | 0;
       }
     }
   }
   return dst;
 }
 
-function chooseOutputFormat(inputFmt, requested) {
-  if (requested === "jpeg" || requested === "jpg") return "jpeg";
-  if (requested === "png") return "png";
-  return "jpeg";
-}
-
 export async function processImage(inputBytes, options = {}) {
-  const width = parseInt(options.width) || 128;
-  const height = parseInt(options.height) || 128;
-  const quality = parseInt(options.quality) || 80;
-  const format = options.format || "jpeg";
+  // Protection against too large images in a worker environment
+  if (inputBytes.byteLength > 20 * 1024 * 1024) {
+    throw new Error("Source image too large (max 20MB)");
+  }
+
+  const width = Math.min(parseInt(options.width) || 128, 512);
+  const height = Math.min(parseInt(options.height) || 128, 512);
+  const quality = Math.min(Math.max(parseInt(options.quality) || 80, 10), 100);
   const fit = options.fit || "cover";
+  
   const raw = new Uint8Array(inputBytes);
   const inputFmt = detectFormat(raw);
-  if (!inputFmt) throw new Error("Unsupported image format");
+  if (inputFmt !== "jpeg") {
+    // For now, if not JPEG, we just return the original if it's small, 
+    // or throw if we strictly wanted a thumbnail.
+    // In a real worker, we'd use a WASM-based resizer for PNG/WebP.
+    throw new Error(`Input format "${inputFmt || "unknown"}" not supported for processing`);
+  }
 
-  let imgData, imgW, imgH;
-  if (inputFmt === "jpeg") {
-    const dec = jpeg.decode(raw, { useTArray: true });
-    imgW = dec.width;
-    imgH = dec.height;
-    imgData = new Uint8Array(dec.data);
-  } else {
-    throw new Error(`Input format "${inputFmt}" not supported`);
+  let dec;
+  try {
+    dec = jpeg.decode(raw, { useTArray: true, formatAsRGBA: true });
+  } catch (e) {
+    throw new Error("Failed to decode JPEG: " + e.message);
+  }
+
+  const imgW = dec.width;
+  const imgH = dec.height;
+  
+  // Prevent OOM for very high resolution images
+  if (imgW * imgH > 4096 * 4096) {
+    throw new Error("Resolution too high");
   }
 
   const xform = calculateTransform(imgW, imgH, width, height, fit);
-  let working = imgData;
+  let working = dec.data;
+
   if (xform.cropW !== imgW || xform.cropH !== imgH) {
-    working = cropData(imgData, imgW, imgH, xform);
+    working = cropData(working, imgW, imgH, xform);
   }
+
   if (xform.resizeW !== xform.cropW || xform.resizeH !== xform.cropH) {
     working = bilinearResize(working, xform.cropW, xform.cropH, xform.resizeW, xform.resizeH);
   }
 
-  const resizedW = xform.resizeW;
-  const resizedH = xform.resizeH;
-  const outputFmt = chooseOutputFormat(inputFmt, format);
-  let outputBytes, contentType;
+  const buf = jpeg.encode({
+    data: working,
+    width: xform.resizeW,
+    height: xform.resizeH
+  }, quality);
 
-  if (outputFmt === "jpeg") {
-    const buf = jpeg.encode({ data: working, width: resizedW, height: resizedH }, quality);
-    outputBytes = new Uint8Array(buf.data);
-    contentType = "image/jpeg";
-  } else {
-    throw new Error(`Output format "${outputFmt}" not supported`);
-  }
-
-  return { bytes: outputBytes, contentType };
+  return { bytes: new Uint8Array(buf.data), contentType: "image/jpeg" };
 }
