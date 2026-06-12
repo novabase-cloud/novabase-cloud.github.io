@@ -1,10 +1,11 @@
 import { STORAGE_KEYS, API_BASE_URL } from './config.js';
 import { fetchJSON } from './utils/http.js';
-import { handleCallback, revokeToken } from './utils/oauth.js';
+import { handleCallback, revokeToken, refreshAccessToken } from './utils/oauth.js';
 
 const FORCE_CONSENT_KEY = 'huggingface_oauth_force_consent';
 
 const TOKEN_KEY = STORAGE_KEYS.HF_TOKEN;
+const REFRESH_KEY = STORAGE_KEYS.HF_REFRESH_TOKEN;
 const USER_KEY = STORAGE_KEYS.USER_INFO;
 
 const OAUTH_KEYS = [
@@ -32,6 +33,14 @@ export function getToken() {
   return null;
 }
 
+export function getRefreshToken() {
+  try {
+    return localStorage.getItem(REFRESH_KEY);
+  } catch (_) {
+    return null;
+  }
+}
+
 export function getPassword() {
   return getToken();
 }
@@ -49,15 +58,49 @@ export function getUserInfo() {
   }
 }
 
+async function tryRefresh() {
+  const refresh = getRefreshToken();
+  if (!refresh) return false;
+
+  console.log('[auth] Attempting to refresh access token...');
+  try {
+    const data = await refreshAccessToken(refresh);
+    if (data.access_token) {
+      localStorage.setItem(TOKEN_KEY, data.access_token);
+      cachedToken = data.access_token;
+      if (data.refresh_token) {
+        localStorage.setItem(REFRESH_KEY, data.refresh_token);
+      }
+      console.log('[auth] Token refresh successful');
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn('[auth] Token refresh failed', err);
+    return false;
+  }
+}
+
 export async function validateToken() {
-  const token = getToken();
+  let token = getToken();
   if (!token) return false;
   
   const url = `${API_BASE_URL}/api/whoami-v2`;
   try {
     console.log('[auth] Validating token with worker...');
-    const result = await fetchJSON(url, { skipAuthHandler: true });
+    let result = await fetchJSON(url, { skipAuthHandler: true });
     
+    // If unauthorized, try to refresh once
+    if (result.status === 401) {
+      console.warn('[auth] Token unauthorized (401), trying to refresh...');
+      const refreshed = await tryRefresh();
+      if (refreshed) {
+        token = getToken();
+        // Retry validation with the new token
+        result = await fetchJSON(url, { skipAuthHandler: true });
+      }
+    }
+
     if (result.ok && result.data) {
       console.log('[auth] Token is valid for user:', result.data.name || result.data.username);
       localStorage.setItem(USER_KEY, JSON.stringify(result.data));
@@ -78,6 +121,9 @@ export async function loginWithCode(code) {
     if (data.access_token) {
       localStorage.setItem(TOKEN_KEY, data.access_token);
       cachedToken = data.access_token;
+      if (data.refresh_token) {
+        localStorage.setItem(REFRESH_KEY, data.refresh_token);
+      }
       return true;
     }
     return false;
@@ -92,6 +138,7 @@ export function logout() {
   cachedToken = null;
 
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
 
   for (const key of OAUTH_KEYS) {

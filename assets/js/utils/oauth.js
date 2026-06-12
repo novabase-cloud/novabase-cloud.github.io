@@ -5,11 +5,14 @@
 const FORCE_CONSENT_KEY = 'huggingface_oauth_force_consent';
 
 const getRedirectUri = () => {
-  // Use current origin and pathname to construct the redirect URI dynamically,
-  // but ensure it ends with /#/login as registered in the HF app settings.
+  // Use current origin and pathname to construct the redirect URI dynamically.
+  // We trim trailing slashes from the pathname to prevent double slashes.
   const origin = window.location.origin;
   const path = window.location.pathname.replace(/\/+$/, '');
-  return `${origin}${path}/#/login`;
+  
+  // If we are on GitHub Pages, path might be /repo-name
+  // We want to ensure we result in https://domain.com/path/#/login
+  return `${origin}${path}/#/login`.replace(/([^:]\/)\/+/g, '$1'); 
 };
 
 export const OAUTH_CONFIG = {
@@ -20,6 +23,32 @@ export const OAUTH_CONFIG = {
   TOKEN_URL: 'https://huggingface.co/oauth/token',
   REVOKE_URL: 'https://huggingface.co/oauth/revoke',
 };
+
+/**
+ * Refreshes the access token using the refresh_token
+ */
+export async function refreshAccessToken(refreshToken) {
+  if (!refreshToken) throw new Error('No refresh token available');
+
+  const payload = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: OAUTH_CONFIG.CLIENT_ID,
+  });
+
+  const response = await fetch(OAUTH_CONFIG.TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: payload,
+  });
+
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error_description || data.error);
+  }
+
+  return data; // contains access_token, refresh_token, etc.
+}
 
 /**
  * Generates a random string for the code verifier
