@@ -75,12 +75,27 @@ export async function handleThumbnails(request, url, auth) {
         }
       }
 
-      // Large File Offloading: If image is large (> 2MB) or not JPEG, redirect to Supabase resizer
-      // This saves Cloudflare CPU and uses Supabase's more generous limits.
-      const supabaseResizer = `https://lehfwzwfferrgjrfwiot.supabase.co/functions/v1/thumbnail-resizer?${url.searchParams.toString()}`;
+      // Large File Offloading: Proxy to Supabase resizer (not redirect) so we can pass
+      // the token via Authorization header instead of URL — avoids URL length limits from JWTs.
+      const supabaseParams = new URLSearchParams(url.searchParams);
+      supabaseParams.delete('token');
+      const supabaseUrl = `https://lehfwzwfferrgjrfwiot.supabase.co/functions/v1/thumbnail-resizer?${supabaseParams.toString()}`;
       console.log(`[thumbnail] Offloading large/unsupported image to Supabase: ${inputBytes.byteLength} bytes`);
       
-      return Response.redirect(supabaseResizer, 302);
+      const supabaseHeaders = { 'User-Agent': USER_AGENT };
+      if (token) {
+        supabaseHeaders['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      }
+      
+      const supabaseRes = await fetch(supabaseUrl, {
+        headers: supabaseHeaders,
+        redirect: 'follow',
+      });
+      
+      return new Response(supabaseRes.body, {
+        status: supabaseRes.status,
+        headers: supabaseRes.headers,
+      });
 
     } catch (err) {
       return json({ error: "Failed to fetch source", message: err.message }, 502);
