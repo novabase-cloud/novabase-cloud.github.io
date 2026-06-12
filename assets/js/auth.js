@@ -55,15 +55,19 @@ export async function validateToken() {
   
   const url = `${API_BASE_URL}/api/whoami-v2`;
   try {
-    // http.js will automatically attach the Bearer token
-    const result = await fetchJSON(url);
+    console.log('[auth] Validating token with worker...');
+    const result = await fetchJSON(url, { skipAuthHandler: true });
+    
     if (result.ok && result.data) {
+      console.log('[auth] Token is valid for user:', result.data.name || result.data.username);
       localStorage.setItem(USER_KEY, JSON.stringify(result.data));
       return result.data;
     }
+    
+    console.warn('[auth] Token validation failed with status:', result.status);
     return false;
   } catch (err) {
-    console.warn('[auth] Token validation failed', err);
+    console.error('[auth] Token validation error:', err);
     return false;
   }
 }

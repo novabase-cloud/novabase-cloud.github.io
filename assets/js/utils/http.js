@@ -25,7 +25,7 @@ function handleUnauthorized() {
  * Enhanced fetch wrapper with automatic token injection and error handling.
  */
 export async function request(url, options = {}) {
-  const { timeout = 30000, ...fetchOptions } = options;
+  const { timeout = 30000, skipAuthHandler = false, ...fetchOptions } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -62,7 +62,7 @@ export async function request(url, options = {}) {
     
     clearTimeout(id);
 
-    if (response.status === 401) {
+    if (response.status === 401 && !skipAuthHandler) {
       handleUnauthorized();
     }
 

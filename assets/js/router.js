@@ -158,6 +158,15 @@ function handleRoute() {
   const parsed = parseHash();
   emit(parsed);
 
+  if (parsed.path === 'login') {
+    // If the user lands on #/login but they are already logged in (checked by main.js)
+    // or if the routing just ended up here, we redirect them to storage.
+    // The actual login screen is shown by main.js calling showLoginScreen() 
+    // when isAuthenticated() is false, which overrides the router's view.
+    navigate({ path: '_storage' });
+    return;
+  }
+
   if (parsed.path === '_storage') {
     currentToken++;
     store.set({ loading: false, error: null, data: null, path: '', navView: 'storage' });

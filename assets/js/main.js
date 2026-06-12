@@ -353,41 +353,49 @@ async function computeFooterHash() {
 }
 
 async function handleOAuthCallback() {
-  // Check both search and hash for 'code' (common in hash-based routing)
+  console.log('[auth] Checking for OAuth callback parameters...');
+  // Check both search and hash for 'code'
   const urlParams = new URLSearchParams(window.location.search);
   let code = urlParams.get('code');
   let state = urlParams.get('state');
   
   if (!code && window.location.hash.includes('?')) {
-    const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
-    code = hashParams.get('code');
-    state = state || hashParams.get('state');
-  } else if (!code && window.location.hash.includes('code=')) {
-    // Some providers might not use ? after #
-    const hashParams = new URLSearchParams(window.location.hash.substring(window.location.hash.indexOf('code=')));
+    const hashPart = window.location.hash.split('?')[1];
+    const hashParams = new URLSearchParams(hashPart);
     code = hashParams.get('code');
     state = state || hashParams.get('state');
   }
 
   if (code) {
+    console.log('[auth] Found OAuth code, exchanging for token...');
     // Validate state to prevent CSRF
     const storedState = localStorage.getItem('huggingface_oauth_state');
-    localStorage.removeItem('huggingface_oauth_state');
+    // Note: We don't remove it immediately in case of accidental refresh during exchange
+    
     if (storedState && state !== storedState) {
-      console.warn('[auth] State mismatch — possible CSRF attack');
-      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname + window.location.hash.split('?')[0]);
+      console.error('[auth] State mismatch — possible CSRF attack. Expected:', storedState, 'Got:', state);
+      localStorage.removeItem('huggingface_oauth_state');
       return null;
     }
+    localStorage.removeItem('huggingface_oauth_state');
 
-    // Clear code from URL for security and aesthetics
-    const cleanUrl = window.location.origin + window.location.pathname + window.location.hash.split('?')[0];
-    window.history.replaceState({}, document.title, cleanUrl);
+    // Clear code and state from URL immediately for security
+    const cleanHash = window.location.hash.split('?')[0] || '#/';
+    const cleanUrl = window.location.origin + window.location.pathname + (window.location.search ? '' : '') + cleanHash;
+    // Remove search params too
+    window.history.replaceState({}, document.title, window.location.origin + window.location.pathname + cleanHash);
     
     try {
       const success = await loginWithCode(code);
-      return success ? true : null;
+      if (success) {
+        console.log('[auth] Token exchange successful');
+        return true;
+      } else {
+        console.warn('[auth] Token exchange failed');
+        return null;
+      }
     } catch (err) {
-      console.error('[auth] OAuth callback error', err);
+      console.error('[auth] OAuth callback error during exchange:', err);
       return null;
     }
   }
@@ -397,29 +405,47 @@ async function handleOAuthCallback() {
 async function verifyAuthOnStartup() {
   // 1. Check if we are returning from OAuth login
   const oauthResult = await handleOAuthCallback();
+  
   if (oauthResult) {
+    // Just logged in, now validate the new token
     const userData = await validateToken();
     if (userData) {
       store.set({ user: userData });
-      // Use hash navigation to storage
-      window.location.hash = '#/_storage';
+      // CRITICAL: Force navigation to a data route to avoid staying on #/login
+      if (window.location.hash.startsWith('#/login')) {
+        window.location.hash = '#/_storage';
+      }
       return true;
+    } else {
+      console.error('[auth] Failed to validate NEW token after OAuth exchange');
+      // If we got a token but it's not valid, something is wrong with the worker or token
+      return false;
     }
   }
 
   // 2. Check existing session
-  if (!isAuthenticated()) return false;
+  if (!isAuthenticated()) {
+    console.log('[auth] No existing session found');
+    return false;
+  }
   
   // 3. Validate existing token
   try {
     const userData = await validateToken();
     if (!userData) {
+      console.warn('[auth] Existing session token is invalid or expired');
       return false;
     }
     store.set({ user: userData });
+    
+    // If we are on the login page but already authenticated, move to home
+    if (window.location.hash.startsWith('#/login')) {
+      window.location.hash = '#/_storage';
+    }
+    
     return true;
   } catch (err) {
-    console.error('[main] Auth verification failed', err);
+    console.error('[main] Auth verification error during startup:', err);
     return false;
   }
 }
