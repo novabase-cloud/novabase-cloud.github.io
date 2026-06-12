@@ -1507,6 +1507,16 @@
   color: var(--color-text-subtle);
 }
 
+.card-thumb-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+  z-index: 1;
+}
+
 .card-thumb-icon {
   display: flex;
   align-items: center;

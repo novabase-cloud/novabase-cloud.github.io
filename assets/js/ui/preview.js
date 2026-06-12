@@ -1,12 +1,13 @@
 import { el, icon, clear, mount } from '../utils/dom.js';
-import { fetchFileText, fetchFileBlob, buildImageUrl } from '../api.js';
+import { fetchFileText, buildImageUrl } from '../api.js';
 import { fetchRaw } from '../utils/http.js';
 import { getPassword } from '../auth.js';
 import { store } from '../store.js';
 import { FILE_TYPES, API_BASE_URL, TEXT_PREVIEW_MAX_BYTES, CODE_LANG_HINT } from '../config.js';
 import { getFileKey } from '../utils/format.js';
 import { showToast } from './toast.js';
-import { mediaCache, fetchAndCache, createObjectURLFromCache, getCachedImageUrl, cacheImageUrl } from '../utils/mediaCache.js';
+import { mediaCache, fetchAndCache } from '../utils/mediaCache.js';
+import { imageCache } from '../utils/imageCache.js';
 
 const ICONS = {
   close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
@@ -345,8 +346,28 @@ function buildCarousel(container) {
         el('span', { class: 'carousel-thumb-audio-icon' }, [icon(ICONS.volume, 28)])
       ]));
     } else {
-      const imgUrl = buildImageUrl(item.full_path);
-      const img = el('img', { loading: 'lazy', src: imgUrl, class: 'carousel-thumb-img', alt: item.name });
+      const carouselPath = item.full_path;
+      const cached = imageCache.has(carouselPath);
+      const img = el('img', {
+        class: 'carousel-thumb-img',
+        alt: item.name
+      });
+      if (cached) {
+        const blob = imageCache.get(carouselPath);
+        img.src = URL.createObjectURL(blob);
+      } else {
+        img.style.opacity = '0.5';
+        imageCache.fetch(carouselPath, buildImageUrl(carouselPath))
+          .then((blob) => {
+            img.src = URL.createObjectURL(blob);
+            img.style.opacity = '';
+          })
+          .catch(() => {
+            img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
+              el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
+            ]));
+          });
+      }
       img.onerror = () => {
         img.replaceWith(el('div', { class: 'carousel-thumb-img carousel-thumb-placeholder' }, [
           el('span', { class: 'carousel-thumb-placeholder-icon' }, ['🖼'])
@@ -417,18 +438,18 @@ async function loadMedia(idx) {
         currentObjectUrl = URL.createObjectURL(blob);
         mount(slot, buildAudioPlayer(currentObjectUrl, item.name));
       } else if (isImg) {
-        const cachedUrl = getCachedImageUrl(item.full_path);
-        if (cachedUrl) {
-          if (idx !== currentIndex || !backdrop) return;
-          currentObjectUrl = cachedUrl;
-          mount(slot, buildImageView(currentObjectUrl, key));
-        } else {
-          const blob = await fetchAndCache(item.download_url, item.full_path);
-          if (idx !== currentIndex || !backdrop) return;
-          cacheImageUrl(item.full_path, blob);
-          currentObjectUrl = URL.createObjectURL(blob);
-          mount(slot, buildImageView(currentObjectUrl, key));
+        let blob = imageCache.get(item.full_path);
+        if (!blob) {
+          blob = await mediaCache.get(item.full_path);
+          if (blob) imageCache.set(item.full_path, blob);
         }
+        if (!blob) {
+          blob = await imageCache.fetch(item.full_path, item.download_url);
+          if (blob) mediaCache.set(item.full_path, blob).catch(() => {});
+        }
+        if (idx !== currentIndex || !backdrop) return;
+        currentObjectUrl = URL.createObjectURL(blob);
+        mount(slot, buildImageView(currentObjectUrl, key));
       }
     }
   } catch (err) {
@@ -449,20 +470,19 @@ async function loadMediaForce(idx, slot, item, key, isAudio, isImg) {
       currentObjectUrl = URL.createObjectURL(blob);
       mount(slot, buildAudioPlayer(currentObjectUrl, item.name));
     } else if (isImg) {
-      const cachedUrl = getCachedImageUrl(item.full_path);
-      if (cachedUrl) {
-        if (idx !== currentIndex || !backdrop) return;
-        revokeCurrentUrl();
-        currentObjectUrl = cachedUrl;
-        mount(slot, buildImageView(currentObjectUrl, key));
-      } else {
-        const blob = await fetchAndCache(item.download_url, item.full_path);
-        if (idx !== currentIndex || !backdrop) return;
-        revokeCurrentUrl();
-        cacheImageUrl(item.full_path, blob);
-        currentObjectUrl = URL.createObjectURL(blob);
-        mount(slot, buildImageView(currentObjectUrl, key));
+      let blob = imageCache.get(item.full_path);
+      if (!blob) {
+        blob = await mediaCache.get(item.full_path);
+        if (blob) imageCache.set(item.full_path, blob);
       }
+      if (!blob) {
+        blob = await imageCache.fetch(item.full_path, item.download_url);
+        if (blob) mediaCache.set(item.full_path, blob).catch(() => {});
+      }
+      if (idx !== currentIndex || !backdrop) return;
+      revokeCurrentUrl();
+      currentObjectUrl = URL.createObjectURL(blob);
+      mount(slot, buildImageView(currentObjectUrl, key));
     }
   } catch (err) {
     if (idx !== currentIndex || !backdrop) return;
@@ -580,19 +600,19 @@ function renderContent(path, name, key, isImage, isVideo, isAudio, isJson, isCsv
         return;
       }
       if (isImage && key !== 'svg') {
-        const cachedUrl = getCachedImageUrl(path);
-        if (cachedUrl) {
-          if (!body.isConnected) return;
-          clear(body);
-          body.appendChild(buildImageView(cachedUrl, key));
-        } else {
-          const blob = await fetchAndCache(buildDownloadHref(path), path);
-          if (!body.isConnected) return;
-          const url = URL.createObjectURL(blob);
-          cacheImageUrl(path, blob);
-          clear(body);
-          body.appendChild(buildImageView(url, key));
+        let blob = imageCache.get(path);
+        if (!blob) {
+          blob = await mediaCache.get(path);
+          if (blob) imageCache.set(path, blob);
         }
+        if (!blob) {
+          blob = await imageCache.fetch(path, buildDownloadHref(path));
+          if (blob) mediaCache.set(path, blob).catch(() => {});
+        }
+        if (!body.isConnected) return;
+        const url = URL.createObjectURL(blob);
+        clear(body);
+        body.appendChild(buildImageView(url, key));
         return;
       }
       if (isJson) {

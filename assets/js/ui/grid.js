@@ -5,6 +5,7 @@ import { openPreview } from './preview.js';
 import { FILE_TYPES } from '../config.js';
 import { getSettings } from '../settings.js';
 import { buildImageUrl } from '../api.js';
+import { imageCache } from '../utils/imageCache.js';
 
 const ICONS = {
   folder: '<path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"></path>',
@@ -30,23 +31,48 @@ function getObserver() {
     observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          const el = entry.target;
-          const src = el.dataset.src;
-          if (src) {
-            if (el.tagName === 'IMG') {
-              el.src = src;
-            } else if (el.tagName === 'VIDEO') {
-              el.src = src;
-              el.load();
+          const target = entry.target;
+          const type = target.dataset.type;
+          if (type === 'image') {
+            loadImage(target, target.dataset.path, target.dataset.url);
+          } else {
+            const src = target.dataset.src;
+            if (src) {
+              if (target.tagName === 'IMG') {
+                target.src = src;
+              } else if (target.tagName === 'VIDEO') {
+                target.src = src;
+                target.load();
+              }
             }
-            el.removeAttribute('data-src');
           }
-          observer.unobserve(el);
+          observer.unobserve(target);
         }
       }
     }, { rootMargin: '200px' });
   }
   return observer;
+}
+
+async function loadImage(container, path, url) {
+  const loader = container.querySelector('.card-thumb-loader');
+  const img = container.querySelector('.card-thumb-img');
+  const fallback = container.querySelector('.card-thumb-fallback');
+  if (!container.isConnected) return;
+
+  try {
+    const blob = await imageCache.fetch(path, url);
+    if (!container.isConnected) return;
+    const objectUrl = URL.createObjectURL(blob);
+    img.src = objectUrl;
+    img.style.display = '';
+    if (loader) loader.style.display = 'none';
+    if (fallback) fallback.style.display = 'none';
+  } catch (err) {
+    if (!container.isConnected) return;
+    if (loader) loader.style.display = 'none';
+    if (fallback) fallback.style.display = 'flex';
+  }
 }
 
 function iconForItem(item) {
@@ -99,22 +125,36 @@ function renderCard(item, isParent) {
       el('span', { class: 'card-folder-icon' }, [icon(ICONS.folder, 36)])
     ]);
   } else if (FILE_TYPES.IMAGE.includes(key) && key !== 'svg') {
-    const imgUrl = buildImageUrl(item.path || item.full_path);
+    const imagePath = item.path || item.full_path;
+    const imgUrl = buildImageUrl(imagePath);
+    const isCached = imageCache.has(imagePath);
+
     const img = el('img', {
       class: 'card-thumb-img',
       alt: item.name,
-      'data-src': imgUrl,
+      style: { display: isCached ? '' : 'none' },
       onError: function() {
         this.style.display = 'none';
         const next = this.nextElementSibling;
         if (next) next.style.display = 'flex';
       }
     });
-    getObserver().observe(img);
-    thumb = el('div', { class: 'card-thumb card-thumb-media' }, [
-      img,
-      el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.image, 28)])
+    const loader = el('div', { class: 'card-thumb-loader', style: { display: isCached ? 'none' : 'flex' } }, [
+      el('span', { class: 'spinner' })
     ]);
+    const fallback = el('span', { class: 'card-thumb-fallback', style: { display: 'none' } }, [icon(ICONS.image, 28)]);
+
+    thumb = el('div', { class: 'card-thumb card-thumb-media' }, [loader, img, fallback]);
+
+    if (isCached) {
+      const blob = imageCache.get(imagePath);
+      if (blob) img.src = URL.createObjectURL(blob);
+    } else {
+      thumb.dataset.type = 'image';
+      thumb.dataset.path = imagePath;
+      thumb.dataset.url = imgUrl;
+      getObserver().observe(thumb);
+    }
   } else if (FILE_TYPES.VIDEO.includes(key)) {
     thumb = el('div', { class: 'card-thumb card-thumb-media card-thumb-video' }, [
       el('div', { class: 'card-thumb-play' }, [icon(ICONS.play, 28)]),
@@ -261,6 +301,8 @@ function applyHiddenFilter(items) {
 }
 
 export function renderGrid({ items, path, loading, error }) {
+  imageCache.revokePendingUrls();
+
   if (loading) {
     return el('div', { class: 'data-card' }, [
       el('div', { class: 'loading-state' }, [el('span', { class: 'spinner' }), el('span', {}, 'Loading data...')])
